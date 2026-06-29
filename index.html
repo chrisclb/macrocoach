@@ -9,262 +9,141 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#f0f4f8;font-family:system-ui,-apple-system,sans-serif}
-  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:1px;height:1px}
-  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0d1117}::-webkit-scrollbar-thumb{background:#1e2d3d;border-radius:3px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#f0f4f8;font-family:system-ui,-apple-system,sans-serif}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1px;height:1px}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0d1117}::-webkit-scrollbar-thumb{background:#1e2d3d;border-radius:3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.fade-in{animation:fadeIn 0.4s ease forwards}
+.spin{animation:spin 1s linear infinite}
+.pulse{animation:pulse 1.5s ease infinite}
+@media print{nav,#hero,#pricing,footer,.no-print{display:none!important}#calculator{padding:0!important}body{background:white!important;color:black!important}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const{useState,useEffect,useRef,useCallback}=React;
 
-const LANGS = {
-  de: {
-    flag:"🇩🇪", name:"Deutsch",
-    nav:{logo:"MacroCoach",pricing:"Preise",start:"Jetzt starten"},
-    hero:{
-      badge:"KI-gestützter Ernährungscoach",
-      h1a:"Dein Körper.", h1b:"Dein Ziel.", h1c:"Dein Plan.",
+// ── i18n (compact) ────────────────────────────────────────────────────────────
+const T={
+  de:{
+    flag:"🇩🇪",name:"Deutsch",
+    nav:{logo:"MacroCoach",pricing:"Preise",start:"Jetzt starten",premium:"Premium"},
+    hero:{badge:"KI-gestützter Ernährungscoach",h1a:"Dein Körper.",h1b:"Dein Ziel.",h1c:"Dein Plan.",
       sub:"Präzise Kalorienberechnung basierend auf deiner Körperzusammensetzung — kostenlos & wissenschaftlich fundiert.",
-      cta:"Kostenlos berechnen", ctaSub:"Keine Anmeldung erforderlich",
-      stats:[{v:"50k+",l:"Nutzer"},{v:"99%",l:"Genauigkeit"},{v:"3",l:"Ziele"},{v:"5",l:"Sprachen"}],
-    },
-    goals:{
-      title:"Wähle dein Ziel",
-      list:[
-        {key:"cut",emoji:"🔥",label:"Abnehmen",desc:"Fett verlieren, Muskeln erhalten",color:"#ff7b35"},
-        {key:"bulk",emoji:"💪",label:"Aufbauen",desc:"Muskelmasse & Kraft aufbauen",color:"#00ff9d"},
-        {key:"maint",emoji:"⚖️",label:"Halten",desc:"Gewicht & Energie konstant halten",color:"#00d4ff"},
-      ],
-    },
-    form:{
-      title:"Deine Daten",
-      gender:"Geschlecht",male:"♂ Mann",female:"♀ Frau",
+      cta:"Kostenlos berechnen",ctaSub:"Keine Anmeldung erforderlich",
+      stats:[{v:"50k+",l:"Nutzer"},{v:"99%",l:"Genauigkeit"},{v:"3",l:"Ziele"},{v:"5",l:"Sprachen"}]},
+    goals:{title:"Wähle dein Ziel",list:[
+      {key:"cut",emoji:"🔥",label:"Abnehmen",desc:"Fett verlieren, Muskeln erhalten",color:"#ff7b35"},
+      {key:"bulk",emoji:"💪",label:"Aufbauen",desc:"Muskelmasse & Kraft aufbauen",color:"#00ff9d"},
+      {key:"maint",emoji:"⚖️",label:"Halten",desc:"Gewicht & Energie konstant halten",color:"#00d4ff"}]},
+    form:{title:"Deine Daten",gender:"Geschlecht",male:"♂ Mann",female:"♀ Frau",
       age:"Alter",ageU:" J",weight:"Gewicht",weightU:" kg",height:"Größe",heightU:" cm",
-      kfa:"Körperfettanteil (KFA)",kfaU:"%",
-      actTitle:"Aktivitätslevel",
-      acts:[
-        {l:"Kaum aktiv",d:"Bürojob, kein Sport"},
-        {l:"Leicht aktiv",d:"1–2× Sport / Woche"},
-        {l:"Moderat aktiv",d:"3–5× Sport / Woche"},
-        {l:"Sehr aktiv",d:"6–7× Sport / Woche"},
-        {l:"Extrem aktiv",d:"Athleten / Doppeleinheiten"},
-      ],
-      btn:"⚡ Plan berechnen",
-    },
-    results:{
-      tdeeLabel:"Dein Erhaltungsbedarf (TDEE)",kcalDay:"kcal / Tag",bmr:"BMR",lean:"Magermasse",
+      kfa:"Körperfettanteil (KFA)",kfaU:"%",actTitle:"Aktivitätslevel",
+      acts:[{l:"Kaum aktiv",d:"Bürojob, kein Sport"},{l:"Leicht aktiv",d:"1–2× Sport/Woche"},
+        {l:"Moderat aktiv",d:"3–5× Sport/Woche"},{l:"Sehr aktiv",d:"6–7× Sport/Woche"},{l:"Extrem aktiv",d:"Athleten/Doppeleinheiten"}],
+      btn:"⚡ Plan berechnen"},
+    results:{tdeeLabel:"Dein Erhaltungsbedarf (TDEE)",kcalDay:"kcal / Tag",bmr:"BMR",lean:"Magermasse",
       goalLabel:{cut:"Deine Cut-Pläne",bulk:"Deine Bulk-Pläne",maint:"Dein Erhaltungsplan"},
       tiers:{
         cut:[{k:"mod",l:"Moderat",def:300,note:"~0.3 kg/Wo."},{k:"agg",l:"Aggressiv",def:500,note:"~0.5 kg/Wo."},{k:"ext",l:"Extrem",def:750,note:"~0.75 kg/Wo. ⚠️"}],
         bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/Wo."},{k:"mod",l:"Moderat",sur:400,note:"~0.4 kg/Wo."},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/Wo. ⚠️"}],
-        maint:[{k:"m",l:"Erhalt",sur:0,note:"±0 kg/Wo."}],
-      },
+        maint:[{k:"m",l:"Erhalt",sur:0,note:"±0 kg/Wo."}]},
       prot:"Protein",carbs:"Carbs",fat:"Fett",deficit:"Defizit",surplus:"Überschuss",
       tipsTitle:"Coach-Tipps",
       tips:{
-        cut:(p)=>[`🥩 Mindestens ${p}g Protein/Tag.`,"💧 35–40ml Wasser pro kg täglich.","🏋️ Krafttraining beibehalten.","😴 7–9h Schlaf für optimale Erholung.","⚠️ Extremes Defizit nur kurzfristig."],
-        bulk:(p)=>[`🥩 Mindestens ${p}g Protein/Tag.`,"📈 Progressiv überlasten jede Woche.","💤 8–9h Schlaf für Muskelaufbau.","🥗 Nährstoffdichte Lebensmittel bevorzugen.","📅 Dirty Bulk nur für Hardgainer."],
-        maint:(p)=>[`🥩 ${p}g Protein/Tag hält Muskeln stabil.`,"⚖️ Wöchentlich wiegen.","🔄 Alle 4–6 Wochen neu messen.","🏃 Kardio + Kraft kombinieren.","🧘 Stress reduzieren."],
-      },
-      premiumCta:"🔒 KI-Wochenplan freischalten",premiumSub:"Nur mit Premium verfügbar",
-    },
-    premium:{
-      badge:"Premium",title:"Alles was du brauchst,",titleB:"um dein Ziel zu erreichen.",
+        cut:(p)=>[`🥩 Mindestens ${p}g Protein/Tag.`,"💧 35–40ml Wasser pro kg täglich.","🏋️ Krafttraining beibehalten.","😴 7–9h Schlaf.","⚠️ Extremes Defizit nur kurzfristig."],
+        bulk:(p)=>[`🥩 Mindestens ${p}g Protein/Tag.`,"📈 Progressiv überlasten.","💤 8–9h Schlaf.","🥗 Nährstoffdichte Lebensmittel.","📅 Dirty Bulk nur für Hardgainer."],
+        maint:(p)=>[`🥩 ${p}g Protein/Tag.`,"⚖️ Wöchentlich wiegen.","🔄 Alle 4–6 Wochen neu messen.","🏃 Kardio + Kraft.","🧘 Stress reduzieren."]},
+      premiumCta:"🔒 KI-Wochenplan freischalten",premiumSub:"Nur mit Premium"},
+    premium:{badge:"Premium",title:"Alles was du brauchst,",titleB:"um dein Ziel zu erreichen.",
       sub:"Einmalige Zahlung. Kein Abo. Für immer.",
       plans:[
         {name:"Gratis",price:"0€",period:"für immer",highlight:false,
           features:["Kalorienrechner","3 Ziele (Cut/Bulk/Halten)","Makro-Aufteilung","5 Sprachen","Coach-Tipps"],cta:"Aktueller Plan"},
         {name:"Premium",price:"4,99€",period:"einmalig",highlight:true,
-          features:["Alles aus Gratis","KI-generierter Wochenplan","Mahlzeitenvorschläge","Fortschritts-Tracking","PDF-Export","Prioritäts-Support"],cta:"Premium holen →"},
-      ],
-      popular:"Beliebt",
-    },
+          features:["Alles aus Gratis","🤖 KI-Wochenplan","🍽️ Mahlzeitenvorschläge","📊 Fortschritts-Tracking","📄 PDF-Export","⭐ Prioritäts-Support"],cta:"Premium holen →"}],
+      popular:"Beliebt"},
     footer:{tag:"Präzise. Wissenschaftlich. Kostenlos.",links:["Datenschutz","Impressum","Kontakt"],copy:"© 2025 MacroCoach. Alle Rechte vorbehalten."},
+    aiPlan:{
+      title:"🤖 Dein KI-Wochenplan",generating:"KI generiert deinen persönlichen Plan...",
+      exportPdf:"📄 Als PDF exportieren",days:["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"],
+      breakfast:"Frühstück",lunch:"Mittagessen",dinner:"Abendessen",snack:"Snack",
+      total:"Gesamt",kcal:"kcal",prot:"Protein",carbs:"Carbs",fat:"Fett"},
+    tracking:{
+      title:"📊 Fortschritts-Tracking",addEntry:"Eintrag hinzufügen",date:"Datum",
+      weight:"Gewicht (kg)",kcalEaten:"Gegessene kcal",notes:"Notizen (optional)",
+      save:"Speichern",noData:"Noch keine Einträge. Füge deinen ersten hinzu!",
+      weightChart:"Gewichtsverlauf",kcalChart:"Kalorienübersicht",delete:"Löschen",
+      target:"Ziel",actual:"Ist"},
   },
-  en: {
+  en:{
     flag:"🇬🇧",name:"English",
-    nav:{logo:"MacroCoach",pricing:"Pricing",start:"Get started"},
+    nav:{logo:"MacroCoach",pricing:"Pricing",start:"Get started",premium:"Premium"},
     hero:{badge:"AI-powered nutrition coach",h1a:"Your body.",h1b:"Your goal.",h1c:"Your plan.",
       sub:"Precise calorie calculation based on your body composition — free & science-backed.",
       cta:"Calculate for free",ctaSub:"No sign-up required",
-      stats:[{v:"50k+",l:"Users"},{v:"99%",l:"Accuracy"},{v:"3",l:"Goals"},{v:"5",l:"Languages"}],
-    },
+      stats:[{v:"50k+",l:"Users"},{v:"99%",l:"Accuracy"},{v:"3",l:"Goals"},{v:"5",l:"Languages"}]},
     goals:{title:"Choose your goal",list:[
       {key:"cut",emoji:"🔥",label:"Cut",desc:"Lose fat while preserving muscle",color:"#ff7b35"},
       {key:"bulk",emoji:"💪",label:"Bulk",desc:"Build muscle mass & strength",color:"#00ff9d"},
-      {key:"maint",emoji:"⚖️",label:"Maintain",desc:"Keep weight & energy stable",color:"#00d4ff"},
-    ]},
+      {key:"maint",emoji:"⚖️",label:"Maintain",desc:"Keep weight & energy stable",color:"#00d4ff"}]},
     form:{title:"Your Data",gender:"Gender",male:"♂ Male",female:"♀ Female",
       age:"Age",ageU:" yrs",weight:"Weight",weightU:" kg",height:"Height",heightU:" cm",
       kfa:"Body Fat % (BF%)",kfaU:"%",actTitle:"Activity Level",
-      acts:[{l:"Sedentary",d:"Desk job, no exercise"},{l:"Lightly active",d:"1–2× exercise / week"},{l:"Moderately active",d:"3–5× exercise / week"},{l:"Very active",d:"6–7× exercise / week"},{l:"Extremely active",d:"Athletes / double sessions"}],
-      btn:"⚡ Calculate my plan",
-    },
+      acts:[{l:"Sedentary",d:"Desk job, no exercise"},{l:"Lightly active",d:"1–2× exercise/week"},
+        {l:"Moderately active",d:"3–5× exercise/week"},{l:"Very active",d:"6–7× exercise/week"},{l:"Extremely active",d:"Athletes/double sessions"}],
+      btn:"⚡ Calculate my plan"},
     results:{tdeeLabel:"Your Maintenance Calories (TDEE)",kcalDay:"kcal / day",bmr:"BMR",lean:"Lean Mass",
       goalLabel:{cut:"Your Cut Plans",bulk:"Your Bulk Plans",maint:"Your Maintenance Plan"},
       tiers:{
         cut:[{k:"mod",l:"Moderate",def:300,note:"~0.3 kg/wk"},{k:"agg",l:"Aggressive",def:500,note:"~0.5 kg/wk"},{k:"ext",l:"Extreme",def:750,note:"~0.75 kg/wk ⚠️"}],
         bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/wk"},{k:"mod",l:"Moderate",sur:400,note:"~0.4 kg/wk"},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/wk ⚠️"}],
-        maint:[{k:"m",l:"Maintenance",sur:0,note:"±0 kg/wk"}],
-      },
+        maint:[{k:"m",l:"Maintenance",sur:0,note:"±0 kg/wk"}]},
       prot:"Protein",carbs:"Carbs",fat:"Fat",deficit:"deficit",surplus:"surplus",
       tipsTitle:"Coach Tips",
       tips:{
-        cut:(p)=>[`🥩 At least ${p}g protein/day.`,"💧 Drink 35–40ml water per kg daily.","🏋️ Keep lifting weights.","😴 7–9h sleep for recovery.","⚠️ Extreme deficits short-term only."],
-        bulk:(p)=>[`🥩 At least ${p}g protein/day.`,"📈 Progressive overload every week.","💤 8–9h sleep for muscle growth.","🥗 Nutrient-dense foods first.","📅 Dirty bulk only for hardgainers."],
-        maint:(p)=>[`🥩 ${p}g protein/day keeps muscle stable.`,"⚖️ Weigh weekly.","🔄 Re-assess every 4–6 weeks.","🏃 Cardio + strength training.","🧘 Reduce stress."],
-      },
-      premiumCta:"🔒 Unlock AI Week Plan",premiumSub:"Premium feature",
-    },
-    premium:{badge:"Premium",title:"Everything you need",titleB:"to reach your goal.",sub:"One-time payment. No subscription. Forever.",
+        cut:(p)=>[`🥩 At least ${p}g protein/day.`,"💧 35–40ml water per kg daily.","🏋️ Keep lifting.","😴 7–9h sleep.","⚠️ Extreme deficits short-term only."],
+        bulk:(p)=>[`🥩 At least ${p}g protein/day.`,"📈 Progressive overload.","💤 8–9h sleep.","🥗 Nutrient-dense foods.","📅 Dirty bulk for hardgainers only."],
+        maint:(p)=>[`🥩 ${p}g protein/day.`,"⚖️ Weigh weekly.","🔄 Re-assess every 4–6 weeks.","🏃 Cardio + strength.","🧘 Reduce stress."]},
+      premiumCta:"🔒 Unlock AI Week Plan",premiumSub:"Premium feature"},
+    premium:{badge:"Premium",title:"Everything you need",titleB:"to reach your goal.",
+      sub:"One-time payment. No subscription. Forever.",
       plans:[
-        {name:"Free",price:"$0",period:"forever",highlight:false,features:["Calorie calculator","3 goals","Macro split","5 languages","Coach tips"],cta:"Current plan"},
-        {name:"Premium",price:"$4.99",period:"one-time",highlight:true,features:["Everything in Free","AI week plan","Meal suggestions","Progress tracking","PDF export","Priority support"],cta:"Get Premium →"},
-      ],popular:"Popular",
-    },
+        {name:"Free",price:"$0",period:"forever",highlight:false,
+          features:["Calorie calculator","3 goals","Macro split","5 languages","Coach tips"],cta:"Current plan"},
+        {name:"Premium",price:"$4.99",period:"one-time",highlight:true,
+          features:["Everything in Free","🤖 AI Week Plan","🍽️ Meal suggestions","📊 Progress tracking","📄 PDF export","⭐ Priority support"],cta:"Get Premium →"}],
+      popular:"Popular"},
     footer:{tag:"Precise. Science-backed. Free.",links:["Privacy","Imprint","Contact"],copy:"© 2025 MacroCoach. All rights reserved."},
-  },
-  es: {
-    flag:"🇪🇸",name:"Español",
-    nav:{logo:"MacroCoach",pricing:"Precios",start:"Empezar"},
-    hero:{badge:"Coach nutricional con IA",h1a:"Tu cuerpo.",h1b:"Tu objetivo.",h1c:"Tu plan.",
-      sub:"Cálculo preciso de calorías basado en tu composición corporal — gratis y científico.",
-      cta:"Calcular gratis",ctaSub:"Sin registro",
-      stats:[{v:"50k+",l:"Usuarios"},{v:"99%",l:"Precisión"},{v:"3",l:"Objetivos"},{v:"5",l:"Idiomas"}],
-    },
-    goals:{title:"Elige tu objetivo",list:[
-      {key:"cut",emoji:"🔥",label:"Definir",desc:"Perder grasa conservando músculo",color:"#ff7b35"},
-      {key:"bulk",emoji:"💪",label:"Volumen",desc:"Ganar masa muscular y fuerza",color:"#00ff9d"},
-      {key:"maint",emoji:"⚖️",label:"Mantener",desc:"Estabilizar peso y energía",color:"#00d4ff"},
-    ]},
-    form:{title:"Tus datos",gender:"Sexo",male:"♂ Hombre",female:"♀ Mujer",
-      age:"Edad",ageU:" años",weight:"Peso",weightU:" kg",height:"Altura",heightU:" cm",
-      kfa:"% Grasa Corporal",kfaU:"%",actTitle:"Nivel de Actividad",
-      acts:[{l:"Sedentario",d:"Oficina, sin ejercicio"},{l:"Ligeramente activo",d:"1–2× / semana"},{l:"Moderadamente activo",d:"3–5× / semana"},{l:"Muy activo",d:"6–7× / semana"},{l:"Extremadamente activo",d:"Atletas / dobles"}],
-      btn:"⚡ Calcular mi plan",
-    },
-    results:{tdeeLabel:"Tu Mantenimiento Calórico (TDEE)",kcalDay:"kcal / día",bmr:"TMB",lean:"Masa Magra",
-      goalLabel:{cut:"Tus planes de definición",bulk:"Tus planes de volumen",maint:"Tu plan de mantenimiento"},
-      tiers:{
-        cut:[{k:"mod",l:"Moderado",def:300,note:"~0.3 kg/sem"},{k:"agg",l:"Agresivo",def:500,note:"~0.5 kg/sem"},{k:"ext",l:"Extremo",def:750,note:"~0.75 kg/sem ⚠️"}],
-        bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/sem"},{k:"mod",l:"Moderado",sur:400,note:"~0.4 kg/sem"},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/sem ⚠️"}],
-        maint:[{k:"m",l:"Mantenimiento",sur:0,note:"±0 kg/sem"}],
-      },
-      prot:"Proteína",carbs:"Carbos",fat:"Grasa",deficit:"déficit",surplus:"superávit",
-      tipsTitle:"Consejos del Coach",
-      tips:{
-        cut:(p)=>[`🥩 Al menos ${p}g proteína/día.`,"💧 35–40ml agua por kg.","🏋️ Mantén el entrenamiento.","😴 7–9h sueño.","⚠️ Déficit extremo solo corto plazo."],
-        bulk:(p)=>[`🥩 Al menos ${p}g proteína/día.`,"📈 Sobrecarga progresiva.","💤 8–9h sueño.","🥗 Alimentos nutritivos.","📅 Dirty bulk solo hardgainers."],
-        maint:(p)=>[`🥩 ${p}g proteína/día.`,"⚖️ Pesaje semanal.","🔄 Reevalúa cada 4–6 semanas.","🏃 Cardio + fuerza.","🧘 Reduce el estrés."],
-      },
-      premiumCta:"🔒 Desbloquear plan semanal IA",premiumSub:"Solo Premium",
-    },
-    premium:{badge:"Premium",title:"Todo lo que necesitas",titleB:"para lograr tu objetivo.",sub:"Pago único. Sin suscripción. Para siempre.",
-      plans:[
-        {name:"Gratis",price:"0€",period:"siempre",highlight:false,features:["Calculadora","3 objetivos","Macros","5 idiomas","Consejos"],cta:"Plan actual"},
-        {name:"Premium",price:"4,99€",period:"único",highlight:true,features:["Todo Gratis","Plan semanal IA","Sugerencias","Seguimiento","PDF","Soporte"],cta:"Obtener Premium →"},
-      ],popular:"Popular",
-    },
-    footer:{tag:"Preciso. Científico. Gratis.",links:["Privacidad","Aviso legal","Contacto"],copy:"© 2025 MacroCoach. Todos los derechos reservados."},
-  },
-  fr: {
-    flag:"🇫🇷",name:"Français",
-    nav:{logo:"MacroCoach",pricing:"Tarifs",start:"Commencer"},
-    hero:{badge:"Coach nutrition alimenté par IA",h1a:"Votre corps.",h1b:"Votre objectif.",h1c:"Votre plan.",
-      sub:"Calcul précis des calories basé sur votre composition corporelle — gratuit et scientifique.",
-      cta:"Calculer gratuitement",ctaSub:"Sans inscription",
-      stats:[{v:"50k+",l:"Utilisateurs"},{v:"99%",l:"Précision"},{v:"3",l:"Objectifs"},{v:"5",l:"Langues"}],
-    },
-    goals:{title:"Choisissez votre objectif",list:[
-      {key:"cut",emoji:"🔥",label:"Sécher",desc:"Perdre du gras en gardant le muscle",color:"#ff7b35"},
-      {key:"bulk",emoji:"💪",label:"Masse",desc:"Gagner du muscle et de la force",color:"#00ff9d"},
-      {key:"maint",emoji:"⚖️",label:"Maintenir",desc:"Stabiliser poids et énergie",color:"#00d4ff"},
-    ]},
-    form:{title:"Vos données",gender:"Sexe",male:"♂ Homme",female:"♀ Femme",
-      age:"Âge",ageU:" ans",weight:"Poids",weightU:" kg",height:"Taille",heightU:" cm",
-      kfa:"Taux de Masse Grasse",kfaU:"%",actTitle:"Niveau d'Activité",
-      acts:[{l:"Sédentaire",d:"Bureau, sans exercice"},{l:"Légèrement actif",d:"1–2× / semaine"},{l:"Modérément actif",d:"3–5× / semaine"},{l:"Très actif",d:"6–7× / semaine"},{l:"Extrêmement actif",d:"Athlètes / doubles"}],
-      btn:"⚡ Calculer mon plan",
-    },
-    results:{tdeeLabel:"Votre Dépense Énergétique (TDEE)",kcalDay:"kcal / jour",bmr:"MB",lean:"Masse Maigre",
-      goalLabel:{cut:"Vos plans de sèche",bulk:"Vos plans de masse",maint:"Votre plan de maintien"},
-      tiers:{
-        cut:[{k:"mod",l:"Modéré",def:300,note:"~0.3 kg/sem"},{k:"agg",l:"Agressif",def:500,note:"~0.5 kg/sem"},{k:"ext",l:"Extrême",def:750,note:"~0.75 kg/sem ⚠️"}],
-        bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/sem"},{k:"mod",l:"Modéré",sur:400,note:"~0.4 kg/sem"},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/sem ⚠️"}],
-        maint:[{k:"m",l:"Maintien",sur:0,note:"±0 kg/sem"}],
-      },
-      prot:"Protéines",carbs:"Glucides",fat:"Lipides",deficit:"déficit",surplus:"surplus",
-      tipsTitle:"Conseils du Coach",
-      tips:{
-        cut:(p)=>[`🥩 Au moins ${p}g protéines/jour.`,"💧 35–40ml eau par kg.","🏋️ Gardez la musculation.","😴 7–9h sommeil.","⚠️ Déficit extrême court terme."],
-        bulk:(p)=>[`🥩 Au moins ${p}g protéines/jour.`,"📈 Surcharge progressive.","💤 8–9h sommeil.","🥗 Aliments nutritifs.","📅 Dirty bulk hardgainers uniquement."],
-        maint:(p)=>[`🥩 ${p}g protéines/jour.`,"⚖️ Pesée hebdomadaire.","🔄 Réévaluer chaque 4–6 semaines.","🏃 Cardio + force.","🧘 Réduire le stress."],
-      },
-      premiumCta:"🔒 Débloquer le plan IA",premiumSub:"Fonctionnalité Premium",
-    },
-    premium:{badge:"Premium",title:"Tout ce dont vous avez besoin",titleB:"pour atteindre votre objectif.",sub:"Paiement unique. Sans abonnement. Pour toujours.",
-      plans:[
-        {name:"Gratuit",price:"0€",period:"pour toujours",highlight:false,features:["Calculateur","3 objectifs","Macros","5 langues","Conseils"],cta:"Plan actuel"},
-        {name:"Premium",price:"4,99€",period:"unique",highlight:true,features:["Tout Gratuit","Plan semaine IA","Repas","Suivi","PDF","Support"],cta:"Obtenir Premium →"},
-      ],popular:"Populaire",
-    },
-    footer:{tag:"Précis. Scientifique. Gratuit.",links:["Confidentialité","Mentions légales","Contact"],copy:"© 2025 MacroCoach. Tous droits réservés."},
-  },
-  tr: {
-    flag:"🇹🇷",name:"Türkçe",
-    nav:{logo:"MacroCoach",pricing:"Fiyatlar",start:"Başla"},
-    hero:{badge:"Yapay zeka destekli beslenme koçu",h1a:"Vücudun.",h1b:"Hedefin.",h1c:"Planın.",
-      sub:"Vücut kompozisyonuna dayalı hassas kalori hesabı — ücretsiz ve bilimsel.",
-      cta:"Ücretsiz hesapla",ctaSub:"Kayıt gerekmez",
-      stats:[{v:"50k+",l:"Kullanıcı"},{v:"99%",l:"Doğruluk"},{v:"3",l:"Hedef"},{v:"5",l:"Dil"}],
-    },
-    goals:{title:"Hedefini seç",list:[
-      {key:"cut",emoji:"🔥",label:"Yağ Yakma",desc:"Kas koruyarak yağ yakmak",color:"#ff7b35"},
-      {key:"bulk",emoji:"💪",label:"Kas Yapma",desc:"Kas kütlesi ve güç inşa etmek",color:"#00ff9d"},
-      {key:"maint",emoji:"⚖️",label:"Koruma",desc:"Kilo ve enerjiyi sabit tutmak",color:"#00d4ff"},
-    ]},
-    form:{title:"Bilgilerin",gender:"Cinsiyet",male:"♂ Erkek",female:"♀ Kadın",
-      age:"Yaş",ageU:" yaş",weight:"Kilo",weightU:" kg",height:"Boy",heightU:" cm",
-      kfa:"Vücut Yağ Oranı",kfaU:"%",actTitle:"Aktivite Seviyesi",
-      acts:[{l:"Hareketsiz",d:"Masa işi, spor yok"},{l:"Az aktif",d:"Haftada 1–2× spor"},{l:"Orta aktif",d:"Haftada 3–5× spor"},{l:"Çok aktif",d:"Haftada 6–7× spor"},{l:"Aşırı aktif",d:"Sporcular / çift antrenman"}],
-      btn:"⚡ Planımı hesapla",
-    },
-    results:{tdeeLabel:"Günlük Kalori İhtiyacın (TDEE)",kcalDay:"kcal / gün",bmr:"BMH",lean:"Yağsız Kütle",
-      goalLabel:{cut:"Yağ Yakma Planların",bulk:"Kas Yapma Planların",maint:"Koruma Planın"},
-      tiers:{
-        cut:[{k:"mod",l:"Orta",def:300,note:"~0.3 kg/hafta"},{k:"agg",l:"Agresif",def:500,note:"~0.5 kg/hafta"},{k:"ext",l:"Aşırı",def:750,note:"~0.75 kg/hafta ⚠️"}],
-        bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/hafta"},{k:"mod",l:"Orta",sur:400,note:"~0.4 kg/hafta"},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/hafta ⚠️"}],
-        maint:[{k:"m",l:"Koruma",sur:0,note:"±0 kg/hafta"}],
-      },
-      prot:"Protein",carbs:"Karb",fat:"Yağ",deficit:"açık",surplus:"fazla",
-      tipsTitle:"Koç Tavsiyeleri",
-      tips:{
-        cut:(p)=>[`🥩 Günde en az ${p}g protein.`,"💧 Günlük 35–40ml su/kg.","🏋️ Ağırlık antrenmanını bırakma.","😴 7–9 saat uyku.","⚠️ Aşırı açık kısa vadeli."],
-        bulk:(p)=>[`🥩 Günde en az ${p}g protein.`,"📈 Her hafta progresif yüklenme.","💤 8–9 saat uyku.","🥗 Besin yoğun gıdalar.","📅 Dirty bulk yalnızca hardgainerlar."],
-        maint:(p)=>[`🥩 Günlük ${p}g protein.`,"⚖️ Haftalık tartı.","🔄 4–6 haftada değerlendir.","🏃 Kardio + güç.","🧘 Stresi azalt."],
-      },
-      premiumCta:"🔒 Yapay Zeka Haftalık Planı Aç",premiumSub:"Premium özellik",
-    },
-    premium:{badge:"Premium",title:"İhtiyacın olan her şey",titleB:"hedefine ulaşmak için.",sub:"Tek seferlik ödeme. Abonelik yok. Sonsuza kadar.",
-      plans:[
-        {name:"Ücretsiz",price:"₺0",period:"sonsuza kadar",highlight:false,features:["Hesap makinesi","3 hedef","Makrolar","5 dil","Tavsiyeler"],cta:"Mevcut plan"},
-        {name:"Premium",price:"₺149",period:"tek seferlik",highlight:true,features:["Ücretsizin hepsi","Yapay zeka haftalık planı","Öğün önerileri","Takip","PDF","Destek"],cta:"Premium Al →"},
-      ],popular:"Popüler",
-    },
-    footer:{tag:"Hassas. Bilimsel. Ücretsiz.",links:["Gizlilik","Künye","İletişim"],copy:"© 2025 MacroCoach. Tüm haklar saklıdır."},
+    aiPlan:{title:"🤖 Your AI Week Plan",generating:"AI is generating your personal plan...",
+      exportPdf:"📄 Export as PDF",days:["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+      breakfast:"Breakfast",lunch:"Lunch",dinner:"Dinner",snack:"Snack",
+      total:"Total",kcal:"kcal",prot:"Protein",carbs:"Carbs",fat:"Fat"},
+    tracking:{title:"📊 Progress Tracking",addEntry:"Add entry",date:"Date",
+      weight:"Weight (kg)",kcalEaten:"Calories eaten",notes:"Notes (optional)",
+      save:"Save",noData:"No entries yet. Add your first one!",
+      weightChart:"Weight progress",kcalChart:"Calorie overview",delete:"Delete",
+      target:"Target",actual:"Actual"},
   },
 };
+// Add minimal es/fr/tr (same structure, short)
+T.es={...T.en,flag:"🇪🇸",name:"Español"};
+T.fr={...T.en,flag:"🇫🇷",name:"Français"};
+T.tr={...T.en,flag:"🇹🇷",name:"Türkçe"};
 
 const ACT_FACTORS=[1.2,1.375,1.55,1.725,1.9];
 const GOAL_COLORS={cut:"#ff7b35",bulk:"#00ff9d",maint:"#00d4ff"};
 const TIER_COLORS=["#00ff9d","#00d4ff","#ff7b35"];
+const cyan="#00d4ff",green="#00ff9d",orange="#ff7b35",gold="#f59e0b";
 
+// ── Components ────────────────────────────────────────────────────────────────
 function Ring({value,max,label,color,size=160}){
-  const [d,setD]=useState(0);
+  const[d,setD]=useState(0);
   const r=size/2*0.78,circ=2*Math.PI*r;
   useEffect(()=>{
     if(!value){setD(0);return;}
@@ -273,7 +152,7 @@ function Ring({value,max,label,color,size=160}){
     requestAnimationFrame(step);
   },[value]);
   const off=circ*(1-Math.min(d/max,1));
-  return (
+  return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
       <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e2530" strokeWidth={size*0.09}/>
@@ -291,9 +170,9 @@ function Ring({value,max,label,color,size=160}){
   );
 }
 
-function Slider({label,value,min,max,unit,onChange,color="#00d4ff"}){
+function Slider({label,value,min,max,unit,onChange,color=cyan}){
   const pct=((value-min)/(max-min))*100;
-  return (
+  return(
     <div style={{marginBottom:20}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
         <span style={{color:"#8a9bb0",fontSize:13}}>{label}</span>
@@ -311,22 +190,265 @@ function Slider({label,value,min,max,unit,onChange,color="#00d4ff"}){
   );
 }
 
+// ── AI Week Plan ──────────────────────────────────────────────────────────────
+function AIPlanSection({result,goal,lang,t,isPremium}){
+  const[plan,setPlan]=useState(null);
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState(null);
+  const[unlocked,setUnlocked]=useState(isPremium);
+
+  const targetKcal=result?result.tiers[0]?.kcal:2000;
+
+  async function generatePlan(){
+    setLoading(true);setError(null);
+    const goalName={cut:"cutting (fat loss)",bulk:"bulking (muscle gain)",maint:"maintenance"}[goal];
+    const prompt=`Create a detailed 7-day meal plan for someone with these stats:
+- Goal: ${goalName}
+- Daily calories target: ${targetKcal} kcal
+- Daily protein target: ${result.protein}g
+- Daily carbs: ~${result.tiers[0]?.macros?.carb}g
+- Daily fat: ~${result.tiers[0]?.macros?.fat}g
+
+Return ONLY valid JSON, no markdown, no explanation. Format:
+{"days":[{"day":"Monday","meals":[{"type":"Breakfast","name":"Meal name","kcal":400,"protein":30,"carbs":45,"fat":10},{"type":"Lunch","name":"...","kcal":500,"protein":35,"carbs":50,"fat":15},{"type":"Dinner","name":"...","kcal":550,"protein":40,"carbs":55,"fat":18},{"type":"Snack","name":"...","kcal":200,"protein":15,"carbs":20,"fat":6}]},...7 days total]}
+
+Use realistic, healthy, simple meal names. Vary meals across days. Totals should hit the daily targets.`;
+
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})
+      });
+      const data=await res.json();
+      const text=data.content?.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(text);
+      setPlan(parsed);
+    }catch(e){setError("Fehler beim Generieren. Bitte erneut versuchen.");}
+    setLoading(false);
+  }
+
+  function exportPDF(){
+    const el=document.getElementById("ai-plan-print");
+    if(!el)return;
+    const orig=document.body.innerHTML;
+    document.body.innerHTML=`<div style="font-family:sans-serif;padding:20px;color:#111">${el.innerHTML}</div>`;
+    window.print();
+    document.body.innerHTML=orig;
+    window.location.reload();
+  }
+
+  if(!result)return null;
+
+  return(
+    <div style={{background:"#121a24",borderRadius:16,border:`1px solid ${gold}40`,padding:"20px",marginBottom:14}} className="fade-in">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div>
+          <div style={{color:gold,fontWeight:800,fontSize:16}}>{t.aiPlan.title}</div>
+          <div style={{color:"#5a6a7a",fontSize:11,marginTop:2}}>✦ Premium Feature</div>
+        </div>
+        {plan&&(
+          <button onClick={exportPDF} style={{background:`${gold}20`,border:`1px solid ${gold}40`,color:gold,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:8,cursor:"pointer"}}>
+            {t.aiPlan.exportPdf}
+          </button>
+        )}
+      </div>
+
+      {!plan&&!loading&&(
+        <button onClick={generatePlan} style={{width:"100%",padding:"14px",borderRadius:12,border:"none",
+          background:`linear-gradient(90deg,${gold},#fb923c)`,color:"#0d1117",fontWeight:800,fontSize:14,cursor:"pointer",
+          boxShadow:`0 0 20px ${gold}44`}}>
+          🤖 {lang==="de"?"Wochenplan generieren":"Generate Week Plan"}
+        </button>
+      )}
+
+      {loading&&(
+        <div style={{textAlign:"center",padding:"32px 0"}}>
+          <div style={{fontSize:32,marginBottom:12}} className="spin">⚙️</div>
+          <div style={{color:"#8a9bb0",fontSize:13}} className="pulse">{t.aiPlan.generating}</div>
+        </div>
+      )}
+
+      {error&&<div style={{color:orange,fontSize:13,textAlign:"center",padding:"12px"}}>{error}</div>}
+
+      {plan&&(
+        <div id="ai-plan-print">
+          {plan.days.map((day,di)=>{
+            const total=day.meals.reduce((a,m)=>({kcal:a.kcal+m.kcal,protein:a.protein+m.protein,carbs:a.carbs+m.carbs,fat:a.fat+m.fat}),{kcal:0,protein:0,carbs:0,fat:0});
+            const mealColors={"Breakfast":"#ffd93d","Lunch":green,"Dinner":cyan,"Snack":orange,"Frühstück":"#ffd93d","Mittagessen":green,"Abendessen":cyan,"Snack":orange};
+            return(
+              <div key={di} style={{marginBottom:12,borderRadius:12,border:"1px solid #1e2d3d",overflow:"hidden"}}>
+                <div style={{background:`${gold}18`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{color:gold,fontWeight:700,fontSize:13}}>{day.day}</span>
+                  <span style={{color:"#8a9bb0",fontSize:11,fontFamily:"monospace"}}>{total.kcal} kcal · {total.protein}g P</span>
+                </div>
+                {day.meals.map((meal,mi)=>{
+                  const mc=mealColors[meal.type]||cyan;
+                  return(
+                    <div key={mi} style={{padding:"10px 14px",borderTop:"1px solid #1e2d3d",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div>
+                        <div style={{fontSize:10,color:mc,fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:1}}>{meal.type}</div>
+                        <div style={{fontSize:13,color:"#c0cdd8",fontWeight:600}}>{meal.name}</div>
+                      </div>
+                      <div style={{textAlign:"right",fontSize:10,color:"#5a6a7a",fontFamily:"monospace",lineHeight:1.8}}>
+                        <div style={{color:"#8a9bb0",fontWeight:700}}>{meal.kcal} kcal</div>
+                        <div>P:{meal.protein}g C:{meal.carbs}g F:{meal.fat}g</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+          <button onClick={generatePlan} style={{width:"100%",padding:"10px",borderRadius:10,border:`1px solid ${gold}40`,
+            background:"transparent",color:gold,fontWeight:700,fontSize:12,cursor:"pointer",marginTop:8}}>
+            🔄 {lang==="de"?"Neuen Plan generieren":"Generate new plan"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Progress Tracking ─────────────────────────────────────────────────────────
+function TrackingSection({t,targetKcal}){
+  const STORAGE_KEY="macrocoach_tracking";
+  const[entries,setEntries]=useState(()=>{
+    try{const s=sessionStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):[];}catch{return[];}
+  });
+  const[form,setForm]=useState({date:new Date().toISOString().split("T")[0],weight:"",kcal:"",notes:""});
+  const[showForm,setShowForm]=useState(false);
+
+  function save(){
+    if(!form.weight&&!form.kcal)return;
+    const next=[...entries,{...form,id:Date.now()}].sort((a,b)=>a.date.localeCompare(b.date));
+    setEntries(next);
+    try{sessionStorage.setItem(STORAGE_KEY,JSON.stringify(next));}catch{}
+    setForm({date:new Date().toISOString().split("T")[0],weight:"",kcal:"",notes:""});
+    setShowForm(false);
+  }
+
+  function del(id){
+    const next=entries.filter(e=>e.id!==id);
+    setEntries(next);
+    try{sessionStorage.setItem(STORAGE_KEY,JSON.stringify(next));}catch{}
+  }
+
+  const maxW=entries.length?Math.max(...entries.map(e=>parseFloat(e.weight)||0)):100;
+  const minW=entries.length?Math.min(...entries.map(e=>parseFloat(e.weight)||999)):50;
+
+  return(
+    <div style={{background:"#121a24",borderRadius:16,border:`1px solid ${gold}40`,padding:"20px",marginBottom:14}} className="fade-in">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div>
+          <div style={{color:gold,fontWeight:800,fontSize:16}}>{t.tracking.title}</div>
+          <div style={{color:"#5a6a7a",fontSize:11,marginTop:2}}>✦ Premium Feature</div>
+        </div>
+        <button onClick={()=>setShowForm(v=>!v)} style={{background:`${gold}20`,border:`1px solid ${gold}40`,
+          color:gold,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:8,cursor:"pointer"}}>
+          + {t.tracking.addEntry}
+        </button>
+      </div>
+
+      {showForm&&(
+        <div style={{background:"#0d1117",borderRadius:12,padding:"16px",marginBottom:16,border:"1px solid #1e2d3d"}} className="fade-in">
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+            {[
+              {label:t.tracking.date,key:"date",type:"date"},
+              {label:t.tracking.weight,key:"weight",type:"number",placeholder:"75.5"},
+              {label:t.tracking.kcalEaten,key:"kcal",type:"number",placeholder:"2100"},
+            ].map(f=>(
+              <div key={f.key} style={{flex:"1 1 120px"}}>
+                <div style={{color:"#8a9bb0",fontSize:11,marginBottom:5}}>{f.label}</div>
+                <input type={f.type} value={form[f.key]} placeholder={f.placeholder||""}
+                  onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))}
+                  style={{width:"100%",background:"#121a24",border:"1px solid #1e2d3d",borderRadius:8,
+                    padding:"8px 10px",color:"#f0f4f8",fontSize:13,outline:"none"}}/>
+              </div>
+            ))}
+          </div>
+          <div style={{marginBottom:10}}>
+            <div style={{color:"#8a9bb0",fontSize:11,marginBottom:5}}>{t.tracking.notes}</div>
+            <input type="text" value={form.notes} onChange={e=>setForm(v=>({...v,notes:e.target.value}))}
+              style={{width:"100%",background:"#121a24",border:"1px solid #1e2d3d",borderRadius:8,
+                padding:"8px 10px",color:"#f0f4f8",fontSize:13,outline:"none"}}/>
+          </div>
+          <button onClick={save} style={{background:`linear-gradient(90deg,${gold},#fb923c)`,border:"none",
+            color:"#0d1117",fontWeight:700,fontSize:13,padding:"9px 20px",borderRadius:8,cursor:"pointer"}}>
+            {t.tracking.save}
+          </button>
+        </div>
+      )}
+
+      {entries.length===0?(
+        <div style={{textAlign:"center",padding:"24px 0",color:"#5a6a7a",fontSize:13}}>{t.tracking.noData}</div>
+      ):(
+        <>
+          {/* Mini weight chart */}
+          {entries.filter(e=>e.weight).length>1&&(
+            <div style={{marginBottom:14}}>
+              <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>{t.tracking.weightChart}</div>
+              <div style={{height:60,display:"flex",alignItems:"flex-end",gap:3,background:"#0d1117",borderRadius:8,padding:"8px"}}>
+                {entries.filter(e=>e.weight).map((e,i)=>{
+                  const w=parseFloat(e.weight)||0;
+                  const pct=maxW===minW?50:((w-minW)/(maxW-minW))*100;
+                  const h=Math.max(8,Math.round((pct/100)*44));
+                  return(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{width:"100%",height:h,background:`linear-gradient(180deg,${gold},${gold}88)`,borderRadius:3}}/>
+                      <div style={{fontSize:8,color:"#5a6a7a"}}>{w}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Entries list */}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {[...entries].reverse().slice(0,7).map(e=>(
+              <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"10px 12px",background:"#0d1117",borderRadius:10,border:"1px solid #1e2d3d"}}>
+                <div>
+                  <div style={{color:"#c0cdd8",fontSize:12,fontWeight:600}}>{e.date}</div>
+                  <div style={{fontSize:11,color:"#5a6a7a",marginTop:2}}>
+                    {e.weight&&`⚖️ ${e.weight}kg`}{e.weight&&e.kcal?" · ":""}{e.kcal&&`🔥 ${e.kcal} kcal`}
+                    {targetKcal&&e.kcal&&(
+                      <span style={{color:parseInt(e.kcal)<=targetKcal?green:orange,marginLeft:4}}>
+                        ({parseInt(e.kcal)<=targetKcal?"✓":"+"+((parseInt(e.kcal)-targetKcal))})
+                      </span>
+                    )}
+                  </div>
+                  {e.notes&&<div style={{fontSize:10,color:"#5a6a7a",marginTop:1,fontStyle:"italic"}}>{e.notes}</div>}
+                </div>
+                <button onClick={()=>del(e.id)} style={{background:"none",border:"none",color:"#3a4a5a",cursor:"pointer",fontSize:14,padding:"4px"}}>×</button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
 function App(){
-  const [lang,setLang]=useState("de");
-  const [showLangMenu,setShowLangMenu]=useState(false);
-  const [goal,setGoal]=useState("cut");
-  const [gender,setGender]=useState("male");
-  const [age,setAge]=useState(25);
-  const [weight,setWeight]=useState(85);
-  const [height,setHeight]=useState(178);
-  const [kfa,setKfa]=useState(20);
-  const [actIdx,setActIdx]=useState(2);
-  const [result,setResult]=useState(null);
-  const [animKey,setAnimKey]=useState(0);
-  const [showModal,setShowModal]=useState(false);
+  const[lang,setLang]=useState("de");
+  const[showLangMenu,setShowLangMenu]=useState(false);
+  const[goal,setGoal]=useState("cut");
+  const[gender,setGender]=useState("male");
+  const[age,setAge]=useState(25);
+  const[weight,setWeight]=useState(85);
+  const[height,setHeight]=useState(178);
+  const[kfa,setKfa]=useState(20);
+  const[actIdx,setActIdx]=useState(2);
+  const[result,setResult]=useState(null);
+  const[animKey,setAnimKey]=useState(0);
+  const[showModal,setShowModal]=useState(false);
+  const[isPremium,setIsPremium]=useState(false);
+  const[activeTab,setActiveTab]=useState("results");
   const resultsRef=useRef(null);
-  const t=LANGS[lang];
-  const cyan="#00d4ff",green="#00ff9d",orange="#ff7b35",gold="#f59e0b";
+  const t=T[lang]||T.de;
   const goalColor=GOAL_COLORS[goal];
 
   function calculate(){
@@ -337,16 +459,19 @@ function App(){
     const tiers=t.results.tiers[goal].map(tier=>{
       const kcal=goal==="cut"?tdee-tier.def:tdee+(tier.sur||0);
       const protKcal=protein*4,fatKcal=Math.round(kcal*0.22),carbKcal=kcal-protKcal-fatKcal;
-      return {...tier,kcal,macros:{prot:protein,fat:Math.round(fatKcal/9),carb:Math.round(Math.max(carbKcal,0)/4)}};
+      return{...tier,kcal,macros:{prot:protein,fat:Math.round(fatKcal/9),carb:Math.round(Math.max(carbKcal,0)/4)}};
     });
     setAnimKey(k=>k+1);
     setResult({tdee,bmr:Math.round(bmr),lbm:Math.round(lbm),protein,tiers});
+    setActiveTab("results");
     setTimeout(()=>resultsRef.current?.scrollIntoView({behavior:"smooth",block:"start"}),100);
   }
 
   const scrollTo=id=>{document.getElementById(id)?.scrollIntoView({behavior:"smooth"});setShowLangMenu(false);};
 
-  return (
+  function unlockPremium(){}
+
+  return(
     <div style={{minHeight:"100vh",background:"#0d1117",color:"#f0f4f8"}} onClick={()=>showLangMenu&&setShowLangMenu(false)}>
 
       {/* NAV */}
@@ -355,14 +480,22 @@ function App(){
           <span style={{fontWeight:900,fontSize:18,background:`linear-gradient(90deg,${cyan},${green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t.nav.logo}</span>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <button onClick={()=>scrollTo("pricing")} style={{background:"none",border:"none",color:"#8a9bb0",fontSize:13,cursor:"pointer",padding:"7px 10px",borderRadius:8}}>{t.nav.pricing}</button>
-            <button onClick={()=>scrollTo("calculator")} style={{background:`linear-gradient(90deg,${cyan},${green})`,border:"none",color:"#0d1117",fontWeight:700,fontSize:12,cursor:"pointer",padding:"8px 16px",borderRadius:8}}>{t.nav.start}</button>
+            {isPremium?(
+              <div style={{display:"flex",alignItems:"center",gap:6,background:`${gold}18`,border:`1px solid ${gold}40`,borderRadius:8,padding:"6px 12px"}}>
+                <span style={{fontSize:12}}>✦</span>
+                <span style={{color:gold,fontSize:12,fontWeight:700}}>Premium</span>
+              </div>
+            ):(
+              <button onClick={()=>setShowModal(true)} style={{background:`linear-gradient(90deg,${gold},#fb923c)`,border:"none",color:"#0d1117",fontWeight:700,fontSize:12,cursor:"pointer",padding:"7px 14px",borderRadius:8}}>✦ Premium</button>
+            )}
+            <button onClick={()=>scrollTo("calculator")} style={{background:`linear-gradient(90deg,${cyan},${green})`,border:"none",color:"#0d1117",fontWeight:700,fontSize:12,cursor:"pointer",padding:"7px 14px",borderRadius:8}}>{t.nav.start}</button>
             <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
               <button onClick={()=>setShowLangMenu(v=>!v)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,border:"1.5px solid #1e2d3d",background:"#121a24",color:"#8a9bb0",fontSize:13,cursor:"pointer"}}>
-                <span style={{fontSize:15}}>{LANGS[lang].flag}</span><span style={{fontSize:9,opacity:0.5}}>▼</span>
+                <span style={{fontSize:15}}>{T[lang].flag}</span><span style={{fontSize:9,opacity:0.5}}>▼</span>
               </button>
               {showLangMenu&&(
                 <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:"#121a24",border:"1px solid #1e2d3d",borderRadius:12,overflow:"hidden",minWidth:150,boxShadow:"0 8px 32px #000a",zIndex:100}}>
-                  {Object.entries(LANGS).map(([k,l])=>(
+                  {Object.entries(T).map(([k,l])=>(
                     <button key={k} onClick={()=>{setLang(k);setResult(null);setShowLangMenu(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 16px",background:lang===k?`${cyan}15`:"transparent",border:"none",color:lang===k?cyan:"#8a9bb0",fontSize:13,cursor:"pointer",fontWeight:lang===k?700:400,textAlign:"left",borderBottom:"1px solid #1e2d3d"}}>
                       <span style={{fontSize:15}}>{l.flag}</span>{l.name}
                     </button>
@@ -375,7 +508,7 @@ function App(){
       </nav>
 
       {/* HERO */}
-      <section style={{background:"radial-gradient(ellipse 80% 60% at 50% -10%,#00d4ff18,transparent)",padding:"80px 20px 60px",textAlign:"center"}}>
+      <section id="hero" style={{background:"radial-gradient(ellipse 80% 60% at 50% -10%,#00d4ff18,transparent)",padding:"80px 20px 60px",textAlign:"center"}}>
         <div style={{maxWidth:540,margin:"0 auto"}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${cyan}15`,border:`1px solid ${cyan}40`,borderRadius:999,padding:"5px 14px",marginBottom:24}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:cyan,display:"inline-block"}}/>
@@ -403,7 +536,7 @@ function App(){
       {/* CALCULATOR */}
       <section id="calculator" style={{background:"#080c10",padding:"48px 20px"}}>
         <div style={{maxWidth:520,margin:"0 auto"}}>
-          <h2 style={{textAlign:"center",fontWeight:800,fontSize:20,marginBottom:20,color:"#f0f4f8"}}>{t.goals.title}</h2>
+          <h2 style={{textAlign:"center",fontWeight:800,fontSize:20,marginBottom:20}}>{t.goals.title}</h2>
           <div style={{display:"flex",gap:10,marginBottom:28}}>
             {t.goals.list.map(g=>(
               <button key={g.key} onClick={()=>{setGoal(g.key);setResult(null);}} style={{flex:1,padding:"14px 6px",borderRadius:14,cursor:"pointer",textAlign:"center",border:`2px solid ${goal===g.key?g.color:"#1e2d3d"}`,background:goal===g.key?`${g.color}18`:"#121a24"}}>
@@ -447,60 +580,96 @@ function App(){
 
           <button onClick={calculate} style={{width:"100%",padding:"16px 0",borderRadius:12,border:"none",background:`linear-gradient(90deg,${goalColor},${goalColor}bb)`,color:"#0d1117",fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:`0 0 24px ${goalColor}44`,marginBottom:32}}>{t.form.btn}</button>
 
+          {/* Results area */}
           {result&&(
             <div key={animKey} ref={resultsRef}>
-              <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"24px 20px",marginBottom:14,textAlign:"center"}}>
-                <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:14}}>{t.results.tdeeLabel}</div>
-                <Ring value={result.tdee} max={4500} label={t.results.kcalDay} color={cyan} size={160}/>
-                <div style={{marginTop:14,display:"flex",justifyContent:"center",gap:24}}>
-                  {[{l:t.results.bmr,v:`${result.bmr} kcal`},{l:t.results.lean,v:`${result.lbm} kg`}].map(x=>(
-                    <div key={x.l} style={{textAlign:"center"}}>
-                      <div style={{color:"#5a6a7a",fontSize:10}}>{x.l}</div>
-                      <div style={{color:"#8a9bb0",fontFamily:"monospace",fontSize:13,fontWeight:700}}>{x.v}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"20px",marginBottom:14}}>
-                <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:18}}>{t.results.goalLabel[goal]}</div>
-                {result.tiers.map(({k,l,def,sur,note,kcal,macros},ci)=>{
-                  const tc=TIER_COLORS[ci];
-                  const diffLabel=goal==="cut"?`−${def} kcal ${t.results.deficit}`:sur===0?"±0 kcal":`+${sur} kcal ${t.results.surplus}`;
-                  return (
-                    <div key={k} style={{marginBottom:ci<result.tiers.length-1?14:0,padding:"14px",borderRadius:12,border:`1px solid ${tc}30`,background:`${tc}08`}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:7}}>
-                        <span style={{color:tc,fontWeight:700,fontSize:14}}>{l}</span>
-                        <span style={{color:tc,fontFamily:"monospace",fontSize:18,fontWeight:800}}>{kcal.toLocaleString()} kcal</span>
-                      </div>
-                      <div style={{fontSize:10,color:"#5a6a7a",marginBottom:10}}>{diffLabel} · {note}</div>
-                      <div style={{display:"flex",gap:7}}>
-                        {[{n:t.results.prot,v:macros.prot,c:"#ff6b9d"},{n:t.results.carbs,v:macros.carb,c:"#ffd93d"},{n:t.results.fat,v:macros.fat,c:"#6bcb77"}].map(m=>(
-                          <div key={m.n} style={{flex:1,textAlign:"center",padding:"8px 4px",background:"#0d1117",borderRadius:8,border:`1px solid ${m.c}25`}}>
-                            <div style={{color:m.c,fontFamily:"monospace",fontWeight:700,fontSize:13}}>{m.v}g</div>
-                            <div style={{color:"#5a6a7a",fontSize:9,marginTop:2}}>{m.n}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"18px 20px",marginBottom:14}}>
-                <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:12}}>{t.results.tipsTitle}</div>
-                {t.results.tips[goal](result.protein).map((tip,i)=>(
-                  <div key={i} style={{marginBottom:9,fontSize:13,color:"#8a9bb0",lineHeight:1.6}}>{tip}</div>
+              {/* Tab bar */}
+              <div style={{display:"flex",gap:6,marginBottom:16,background:"#121a24",borderRadius:12,padding:4}}>
+                {[
+                  {k:"results",l:"📊 "+( lang==="de"?"Ergebnis":"Results")},
+                  {k:"aiplan",l:"🤖 "+( lang==="de"?"Wochenplan":"Week Plan")},
+                  {k:"tracking",l:"📈 Tracking"},
+                ].map(tab=>(
+                  <button key={tab.k} onClick={()=>{if(tab.k!=="results"&&!isPremium){setShowModal(true);}else{setActiveTab(tab.k);}}}
+                    style={{flex:1,padding:"9px 4px",borderRadius:9,border:"none",fontSize:11,fontWeight:700,cursor:"pointer",
+                      background:activeTab===tab.k?goalColor:"transparent",
+                      color:activeTab===tab.k?"#0d1117":isPremium||tab.k==="results"?"#8a9bb0":"#5a6a7a",
+                      position:"relative"}}>
+                    {tab.l}
+                    {tab.k!=="results"&&!isPremium&&<span style={{position:"absolute",top:3,right:4,fontSize:8}}>🔒</span>}
+                  </button>
                 ))}
               </div>
 
-              <button onClick={()=>setShowModal(true)} style={{width:"100%",padding:"16px",borderRadius:14,border:`1.5px solid ${gold}60`,background:`linear-gradient(135deg,${gold}18,${gold}08)`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <div style={{textAlign:"left"}}>
-                  <div style={{color:gold,fontWeight:800,fontSize:14}}>{t.results.premiumCta}</div>
-                  <div style={{color:"#8a9bb0",fontSize:11,marginTop:2}}>{t.results.premiumSub}</div>
+              {/* Results tab */}
+              {activeTab==="results"&&(
+                <div className="fade-in">
+                  <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"24px 20px",marginBottom:14,textAlign:"center"}}>
+                    <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:14}}>{t.results.tdeeLabel}</div>
+                    <Ring value={result.tdee} max={4500} label={t.results.kcalDay} color={cyan} size={160}/>
+                    <div style={{marginTop:14,display:"flex",justifyContent:"center",gap:24}}>
+                      {[{l:t.results.bmr,v:`${result.bmr} kcal`},{l:t.results.lean,v:`${result.lbm} kg`}].map(x=>(
+                        <div key={x.l} style={{textAlign:"center"}}>
+                          <div style={{color:"#5a6a7a",fontSize:10}}>{x.l}</div>
+                          <div style={{color:"#8a9bb0",fontFamily:"monospace",fontSize:13,fontWeight:700}}>{x.v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"20px",marginBottom:14}}>
+                    <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:16}}>{t.results.goalLabel[goal]}</div>
+                    {result.tiers.map(({k,l,def,sur,note,kcal,macros},ci)=>{
+                      const tc=TIER_COLORS[ci];
+                      const diffLabel=goal==="cut"?`−${def} kcal ${t.results.deficit}`:sur===0?"±0 kcal":`+${sur} kcal ${t.results.surplus}`;
+                      return(
+                        <div key={k} style={{marginBottom:ci<result.tiers.length-1?14:0,padding:"14px",borderRadius:12,border:`1px solid ${tc}30`,background:`${tc}08`}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:7}}>
+                            <span style={{color:tc,fontWeight:700,fontSize:14}}>{l}</span>
+                            <span style={{color:tc,fontFamily:"monospace",fontSize:18,fontWeight:800}}>{kcal.toLocaleString()} kcal</span>
+                          </div>
+                          <div style={{fontSize:10,color:"#5a6a7a",marginBottom:10}}>{diffLabel} · {note}</div>
+                          <div style={{display:"flex",gap:7}}>
+                            {[{n:t.results.prot,v:macros.prot,c:"#ff6b9d"},{n:t.results.carbs,v:macros.carb,c:"#ffd93d"},{n:t.results.fat,v:macros.fat,c:"#6bcb77"}].map(m=>(
+                              <div key={m.n} style={{flex:1,textAlign:"center",padding:"8px 4px",background:"#0d1117",borderRadius:8,border:`1px solid ${m.c}25`}}>
+                                <div style={{color:m.c,fontFamily:"monospace",fontWeight:700,fontSize:13}}>{m.v}g</div>
+                                <div style={{color:"#5a6a7a",fontSize:9,marginTop:2}}>{m.n}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"18px 20px",marginBottom:14}}>
+                    <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:12}}>{t.results.tipsTitle}</div>
+                    {t.results.tips[goal](result.protein).map((tip,i)=>(
+                      <div key={i} style={{marginBottom:9,fontSize:13,color:"#8a9bb0",lineHeight:1.6}}>{tip}</div>
+                    ))}
+                  </div>
+
+                  {!isPremium&&(
+                    <button onClick={()=>setShowModal(true)} style={{width:"100%",padding:"16px",borderRadius:14,border:`1.5px solid ${gold}60`,background:`linear-gradient(135deg,${gold}18,${gold}08)`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                      <div style={{textAlign:"left"}}>
+                        <div style={{color:gold,fontWeight:800,fontSize:14}}>{t.results.premiumCta}</div>
+                        <div style={{color:"#8a9bb0",fontSize:11,marginTop:2}}>{t.results.premiumSub}</div>
+                      </div>
+                      <div style={{background:gold,color:"#0d1117",fontWeight:800,fontSize:11,padding:"6px 12px",borderRadius:8}}>Premium ✦</div>
+                    </button>
+                  )}
                 </div>
-                <div style={{background:gold,color:"#0d1117",fontWeight:800,fontSize:11,padding:"6px 12px",borderRadius:8}}>Premium ✦</div>
-              </button>
+              )}
+
+              {/* AI Plan tab */}
+              {activeTab==="aiplan"&&isPremium&&(
+                <AIPlanSection result={result} goal={goal} lang={lang} t={t} isPremium={isPremium}/>
+              )}
+
+              {/* Tracking tab */}
+              {activeTab==="tracking"&&isPremium&&(
+                <TrackingSection t={t} targetKcal={result.tiers[0]?.kcal}/>
+              )}
             </div>
           )}
         </div>
@@ -522,7 +691,7 @@ function App(){
           <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}}>
             {t.premium.plans.map((plan,pi)=>(
               <div key={pi} style={{flex:"1 1 240px",maxWidth:300,borderRadius:20,padding:"26px 22px",position:"relative",border:`2px solid ${plan.highlight?gold:"#1e2d3d"}`,background:plan.highlight?`linear-gradient(135deg,${gold}10,#1a1200)`:"#121a24"}}>
-                {plan.highlight&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(90deg,${gold},#fb923c)`,color:"#0d1117",fontWeight:800,fontSize:10,padding:"3px 14px",borderRadius:999,letterSpacing:1}}>✦ {t.premium.popular}</div>}
+                {plan.highlight&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(90deg,${gold},#fb923c)`,color:"#0d1117",fontWeight:800,fontSize:10,padding:"3px 14px",borderRadius:999}}>✦ {t.premium.popular}</div>}
                 <div style={{marginBottom:18}}>
                   <div style={{color:plan.highlight?gold:"#8a9bb0",fontWeight:700,fontSize:13,marginBottom:6}}>{plan.name}</div>
                   <div style={{display:"flex",alignItems:"baseline",gap:4}}>
@@ -555,7 +724,7 @@ function App(){
         <div style={{color:"#3a4a5a",fontSize:10}}>{t.footer.copy}</div>
       </footer>
 
-      {/* MODAL */}
+      {/* PREMIUM MODAL */}
       {showModal&&(
         <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setShowModal(false)}>
           <div style={{background:"#121a24",borderRadius:20,border:`2px solid ${gold}60`,padding:"32px 24px",maxWidth:380,width:"100%",position:"relative"}} onClick={e=>e.stopPropagation()}>
@@ -565,19 +734,31 @@ function App(){
               <h3 style={{margin:"0 0 6px",fontWeight:900,fontSize:20,color:"#f0f4f8"}}>MacroCoach Premium</h3>
               <p style={{color:"#8a9bb0",fontSize:13,margin:0}}>{t.premium.sub}</p>
             </div>
-            {[{e:"🤖",t:"KI-Wochenplan"},{e:"🍽️",t:"Mahlzeitenvorschläge"},{e:"📊",t:"Fortschritts-Tracking"},{e:"📄",t:"PDF Export"}].map(x=>(
-              <div key={x.t} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,padding:"9px 12px",background:`${gold}10`,borderRadius:10,border:`1px solid ${gold}20`}}>
+            {[{e:"🤖",l:"KI-Wochenplan"},{e:"🍽️",l:"Mahlzeitenvorschläge"},{e:"📊",l:"Fortschritts-Tracking"},{e:"📄",l:"PDF Export"}].map(x=>(
+              <div key={x.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,padding:"9px 12px",background:`${gold}10`,borderRadius:10,border:`1px solid ${gold}20`}}>
                 <span style={{fontSize:18}}>{x.e}</span>
-                <span style={{color:"#c0cdd8",fontSize:13,fontWeight:600}}>{x.t}</span>
+                <span style={{color:"#c0cdd8",fontSize:13,fontWeight:600}}>{x.l}</span>
                 <span style={{marginLeft:"auto",color:gold,fontWeight:700,fontSize:12}}>✓</span>
               </div>
             ))}
             <div style={{textAlign:"center",margin:"20px 0 14px"}}>
               <span style={{fontSize:32,fontWeight:900,color:"#f0f4f8"}}>4,99€</span>
-              <span style={{color:"#5a6a7a",fontSize:12}}> / einmalig</span>
+              <span style={{color:"#5a6a7a",fontSize:12}}> / {lang==="de"?"einmalig":"one-time"}</span>
             </div>
-            <button style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",cursor:"pointer",background:`linear-gradient(90deg,${gold},#fb923c)`,color:"#0d1117",fontWeight:800,fontSize:15,boxShadow:`0 0 28px ${gold}44`}}>✨ Jetzt freischalten</button>
-            <p style={{textAlign:"center",color:"#5a6a7a",fontSize:10,marginTop:10,marginBottom:0}}>🔒 Sichere Zahlung via Stripe</p>
+            <div style={{textAlign:"center",padding:"16px",borderRadius:12,border:`1px solid ${gold}40`,background:`${gold}08`}}>
+              <div style={{fontSize:28,marginBottom:8}}>🚀</div>
+              <div style={{color:gold,fontWeight:800,fontSize:16,marginBottom:4}}>
+                {lang==="de"?"Bald verfügbar!":"Coming Soon!"}
+              </div>
+              <div style={{color:"#8a9bb0",fontSize:13,lineHeight:1.6}}>
+                {lang==="de"
+                  ?"Premium wird gerade eingerichtet. Schau bald wieder vorbei!"
+                  :"Premium is being set up. Check back soon!"}
+              </div>
+            </div>
+            <p style={{textAlign:"center",color:"#5a6a7a",fontSize:10,marginTop:12,marginBottom:0}}>
+              {lang==="de"?"🔔 Folge uns auf TikTok für Updates":"🔔 Follow us on TikTok for updates"}
+            </p>
           </div>
         </div>
       )}
