@@ -1,298 +1,278 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MacroCoach – Dein Kalorienrechner</title>
-<meta name="description" content="Präzise Kalorienberechnung für Cut, Bulk & Halten – kostenlos & wissenschaftlich fundiert."/>
+<title>MacroCoach – Your AI Nutrition Coach</title>
+<meta name="description" content="Free calorie calculator for cutting, bulking & maintaining — science-backed & AI-powered."/>
+<meta property="og:title" content="MacroCoach – Your AI Nutrition Coach"/>
+<meta property="og:description" content="Precise calorie calculation based on your body composition. Free & science-backed."/>
+<meta property="og:type" content="website"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d1117;color:#f0f4f8;font-family:system-ui,-apple-system,sans-serif}
-input[type=range]{-webkit-appearance:none;appearance:none;background:transparent}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1px;height:1px}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0d1117}::-webkit-scrollbar-thumb{background:#1e2d3d;border-radius:3px}
+html{scroll-behavior:smooth}
+body{background:#0a0d12;color:#eef2f7;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;width:100%;height:100%;position:absolute;inset:0;margin:0;cursor:pointer;z-index:2}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:transparent;cursor:pointer}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:transparent;border:none;cursor:pointer}
+input[type=text],input[type=number],input[type=date]{font-family:'Inter',sans-serif}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#0a0d12}::-webkit-scrollbar-thumb{background:#1e2d3d;border-radius:4px}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-.fade-in{animation:fadeIn 0.4s ease forwards}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px #00d4ff33}50%{box-shadow:0 0 40px #00d4ff66}}
+.fade-up{animation:fadeUp .45s cubic-bezier(.22,1,.36,1) forwards}
 .spin{animation:spin 1s linear infinite}
-.pulse{animation:pulse 1.5s ease infinite}
-@media print{nav,#hero,#pricing,footer,.no-print{display:none!important}#calculator{padding:0!important}body{background:white!important;color:black!important}}
+.pulse{animation:pulse 1.6s ease infinite}
+@media(max-width:480px){.hide-sm{display:none!important}}
+@media print{nav,#hero,#pricing,footer{display:none!important}#calculator{padding:0!important}body{background:#fff!important;color:#111!important}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useEffect,useRef,useCallback}=React;
+const{useState,useEffect,useRef}=React;
 
-// ── i18n (compact) ────────────────────────────────────────────────────────────
+const C={cyan:"#00d4ff",green:"#00ff9d",orange:"#ff7b35",gold:"#f59e0b",pink:"#ff6b9d",yellow:"#ffd93d",lime:"#6bcb77"};
+const ACT=[1.2,1.375,1.55,1.725,1.9];
+const GCOL={cut:C.orange,bulk:C.green,maint:C.cyan};
+const TCOL=[C.green,C.cyan,C.orange];
+
 const T={
-  de:{
-    flag:"🇩🇪",name:"Deutsch",
-    nav:{logo:"MacroCoach",pricing:"Preise",start:"Jetzt starten",premium:"Premium"},
-    hero:{badge:"KI-gestützter Ernährungscoach",h1a:"Dein Körper.",h1b:"Dein Ziel.",h1c:"Dein Plan.",
-      sub:"Präzise Kalorienberechnung basierend auf deiner Körperzusammensetzung — kostenlos & wissenschaftlich fundiert.",
-      cta:"Kostenlos berechnen",ctaSub:"Keine Anmeldung erforderlich",
-      stats:[{v:"50k+",l:"Nutzer"},{v:"99%",l:"Genauigkeit"},{v:"3",l:"Ziele"},{v:"5",l:"Sprachen"}]},
-    goals:{title:"Wähle dein Ziel",list:[
-      {key:"cut",emoji:"🔥",label:"Abnehmen",desc:"Fett verlieren, Muskeln erhalten",color:"#ff7b35"},
-      {key:"bulk",emoji:"💪",label:"Aufbauen",desc:"Muskelmasse & Kraft aufbauen",color:"#00ff9d"},
-      {key:"maint",emoji:"⚖️",label:"Halten",desc:"Gewicht & Energie konstant halten",color:"#00d4ff"}]},
-    form:{title:"Deine Daten",gender:"Geschlecht",male:"♂ Mann",female:"♀ Frau",
-      age:"Alter",ageU:" J",weight:"Gewicht",weightU:" kg",height:"Größe",heightU:" cm",
-      kfa:"Körperfettanteil (KFA)",kfaU:"%",actTitle:"Aktivitätslevel",
-      acts:[{l:"Kaum aktiv",d:"Bürojob, kein Sport"},{l:"Leicht aktiv",d:"1–2× Sport/Woche"},
-        {l:"Moderat aktiv",d:"3–5× Sport/Woche"},{l:"Sehr aktiv",d:"6–7× Sport/Woche"},{l:"Extrem aktiv",d:"Athleten/Doppeleinheiten"}],
-      btn:"⚡ Plan berechnen"},
-    results:{tdeeLabel:"Dein Erhaltungsbedarf (TDEE)",kcalDay:"kcal / Tag",bmr:"BMR",lean:"Magermasse",
-      goalLabel:{cut:"Deine Cut-Pläne",bulk:"Deine Bulk-Pläne",maint:"Dein Erhaltungsplan"},
-      tiers:{
-        cut:[{k:"mod",l:"Moderat",def:300,note:"~0.3 kg/Wo."},{k:"agg",l:"Aggressiv",def:500,note:"~0.5 kg/Wo."},{k:"ext",l:"Extrem",def:750,note:"~0.75 kg/Wo. ⚠️"}],
-        bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/Wo."},{k:"mod",l:"Moderat",sur:400,note:"~0.4 kg/Wo."},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/Wo. ⚠️"}],
-        maint:[{k:"m",l:"Erhalt",sur:0,note:"±0 kg/Wo."}]},
-      prot:"Protein",carbs:"Carbs",fat:"Fett",deficit:"Defizit",surplus:"Überschuss",
-      tipsTitle:"Coach-Tipps",
-      tips:{
-        cut:(p)=>[`🥩 Mindestens ${p}g Protein/Tag.`,"💧 35–40ml Wasser pro kg täglich.","🏋️ Krafttraining beibehalten.","😴 7–9h Schlaf.","⚠️ Extremes Defizit nur kurzfristig."],
-        bulk:(p)=>[`🥩 Mindestens ${p}g Protein/Tag.`,"📈 Progressiv überlasten.","💤 8–9h Schlaf.","🥗 Nährstoffdichte Lebensmittel.","📅 Dirty Bulk nur für Hardgainer."],
-        maint:(p)=>[`🥩 ${p}g Protein/Tag.`,"⚖️ Wöchentlich wiegen.","🔄 Alle 4–6 Wochen neu messen.","🏃 Kardio + Kraft.","🧘 Stress reduzieren."]},
-      premiumCta:"🔒 KI-Wochenplan freischalten",premiumSub:"Nur mit Premium"},
-    premium:{badge:"Premium",title:"Alles was du brauchst,",titleB:"um dein Ziel zu erreichen.",
-      sub:"Einmalige Zahlung. Kein Abo. Für immer.",
-      plans:[
-        {name:"Gratis",price:"0€",period:"für immer",highlight:false,
-          features:["Kalorienrechner","3 Ziele (Cut/Bulk/Halten)","Makro-Aufteilung","5 Sprachen","Coach-Tipps"],cta:"Aktueller Plan"},
-        {name:"Premium",price:"4,99€",period:"einmalig",highlight:true,
-          features:["Alles aus Gratis","🤖 KI-Wochenplan","🍽️ Mahlzeitenvorschläge","📊 Fortschritts-Tracking","📄 PDF-Export","⭐ Prioritäts-Support"],cta:"Premium holen →"}],
-      popular:"Beliebt"},
-    footer:{tag:"Präzise. Wissenschaftlich. Kostenlos.",links:["Datenschutz","Impressum","Kontakt"],copy:"© 2025 MacroCoach. Alle Rechte vorbehalten."},
-    aiPlan:{
-      title:"🤖 Dein KI-Wochenplan",generating:"KI generiert deinen persönlichen Plan...",
-      exportPdf:"📄 Als PDF exportieren",days:["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"],
-      breakfast:"Frühstück",lunch:"Mittagessen",dinner:"Abendessen",snack:"Snack",
-      total:"Gesamt",kcal:"kcal",prot:"Protein",carbs:"Carbs",fat:"Fett"},
-    tracking:{
-      title:"📊 Fortschritts-Tracking",addEntry:"Eintrag hinzufügen",date:"Datum",
-      weight:"Gewicht (kg)",kcalEaten:"Gegessene kcal",notes:"Notizen (optional)",
-      save:"Speichern",noData:"Noch keine Einträge. Füge deinen ersten hinzu!",
-      weightChart:"Gewichtsverlauf",kcalChart:"Kalorienübersicht",delete:"Löschen",
-      target:"Ziel",actual:"Ist"},
-  },
-  en:{
-    flag:"🇬🇧",name:"English",
-    nav:{logo:"MacroCoach",pricing:"Pricing",start:"Get started",premium:"Premium"},
-    hero:{badge:"AI-powered nutrition coach",h1a:"Your body.",h1b:"Your goal.",h1c:"Your plan.",
+  en:{flag:"🇬🇧",name:"English",
+    nav:{logo:"MacroCoach",start:"Calculate",premiumBtn:"✦ Premium"},
+    hero:{badge:"AI-Powered Nutrition Coach",h1:"Your body.",h2:"Your goal.",h3:"Your plan.",
       sub:"Precise calorie calculation based on your body composition — free & science-backed.",
-      cta:"Calculate for free",ctaSub:"No sign-up required",
+      cta:"Calculate for free",ctaSub:"No sign-up · No BS · Just results",
       stats:[{v:"50k+",l:"Users"},{v:"99%",l:"Accuracy"},{v:"3",l:"Goals"},{v:"5",l:"Languages"}]},
-    goals:{title:"Choose your goal",list:[
-      {key:"cut",emoji:"🔥",label:"Cut",desc:"Lose fat while preserving muscle",color:"#ff7b35"},
-      {key:"bulk",emoji:"💪",label:"Bulk",desc:"Build muscle mass & strength",color:"#00ff9d"},
-      {key:"maint",emoji:"⚖️",label:"Maintain",desc:"Keep weight & energy stable",color:"#00d4ff"}]},
-    form:{title:"Your Data",gender:"Gender",male:"♂ Male",female:"♀ Female",
+    goals:{title:"What's your goal?",list:[
+      {key:"cut",emoji:"🔥",label:"Cut",desc:"Lose fat, keep muscle",color:C.orange},
+      {key:"bulk",emoji:"💪",label:"Bulk",desc:"Build muscle & strength",color:C.green},
+      {key:"maint",emoji:"⚖️",label:"Maintain",desc:"Keep weight stable",color:C.cyan}]},
+    form:{title:"Your stats",gender:"Gender",male:"♂  Male",female:"♀  Female",
       age:"Age",ageU:" yrs",weight:"Weight",weightU:" kg",height:"Height",heightU:" cm",
-      kfa:"Body Fat % (BF%)",kfaU:"%",actTitle:"Activity Level",
-      acts:[{l:"Sedentary",d:"Desk job, no exercise"},{l:"Lightly active",d:"1–2× exercise/week"},
-        {l:"Moderately active",d:"3–5× exercise/week"},{l:"Very active",d:"6–7× exercise/week"},{l:"Extremely active",d:"Athletes/double sessions"}],
-      btn:"⚡ Calculate my plan"},
-    results:{tdeeLabel:"Your Maintenance Calories (TDEE)",kcalDay:"kcal / day",bmr:"BMR",lean:"Lean Mass",
-      goalLabel:{cut:"Your Cut Plans",bulk:"Your Bulk Plans",maint:"Your Maintenance Plan"},
+      kfa:"Body Fat %",kfaU:"%",actTitle:"Activity Level",
+      acts:[{l:"Sedentary",d:"Desk job, no exercise"},{l:"Lightly active",d:"1–2× exercise / week"},
+        {l:"Moderately active",d:"3–5× exercise / week"},{l:"Very active",d:"6–7× exercise / week"},
+        {l:"Extremely active",d:"Athletes / double sessions"}],
+      btn:"Calculate my plan ⚡"},
+    res:{tdee:"Your Maintenance (TDEE)",kcalDay:"kcal / day",bmr:"BMR",lean:"Lean Mass",
+      gl:{cut:"Your Cut Plans",bulk:"Your Bulk Plans",maint:"Your Maintenance Plan"},
       tiers:{
         cut:[{k:"mod",l:"Moderate",def:300,note:"~0.3 kg/wk"},{k:"agg",l:"Aggressive",def:500,note:"~0.5 kg/wk"},{k:"ext",l:"Extreme",def:750,note:"~0.75 kg/wk ⚠️"}],
         bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/wk"},{k:"mod",l:"Moderate",sur:400,note:"~0.4 kg/wk"},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/wk ⚠️"}],
         maint:[{k:"m",l:"Maintenance",sur:0,note:"±0 kg/wk"}]},
-      prot:"Protein",carbs:"Carbs",fat:"Fat",deficit:"deficit",surplus:"surplus",
-      tipsTitle:"Coach Tips",
-      tips:{
-        cut:(p)=>[`🥩 At least ${p}g protein/day.`,"💧 35–40ml water per kg daily.","🏋️ Keep lifting.","😴 7–9h sleep.","⚠️ Extreme deficits short-term only."],
-        bulk:(p)=>[`🥩 At least ${p}g protein/day.`,"📈 Progressive overload.","💤 8–9h sleep.","🥗 Nutrient-dense foods.","📅 Dirty bulk for hardgainers only."],
-        maint:(p)=>[`🥩 ${p}g protein/day.`,"⚖️ Weigh weekly.","🔄 Re-assess every 4–6 weeks.","🏃 Cardio + strength.","🧘 Reduce stress."]},
-      premiumCta:"🔒 Unlock AI Week Plan",premiumSub:"Premium feature"},
-    premium:{badge:"Premium",title:"Everything you need",titleB:"to reach your goal.",
+      prot:"Protein",carbs:"Carbs",fat:"Fat",def:"deficit",sur:"surplus",
+      tips:{title:"Coach Tips",
+        cut:(p)=>[`🥩 Eat at least ${p}g protein/day to preserve muscle.`,"💧 Drink 35–40ml water per kg of bodyweight daily.","🏋️ Keep lifting heavy — muscle is your metabolic engine.","😴 Aim for 7–9h sleep. Poor sleep tanks fat loss.","⚠️ Extreme deficits are short-term only — take diet breaks."],
+        bulk:(p)=>[`🥩 Hit ${p}g protein/day minimum — essential for muscle growth.`,"📈 Progressive overload every session. Add weight or reps.","💤 8–9h sleep: GH & testosterone peak during deep sleep.","🥗 Prioritize nutrient-dense foods over junk calories.","📅 Dirty bulk only for hardgainers — raises body fat long-term."],
+        maint:(p)=>[`🥩 ${p}g protein/day keeps muscle and hunger stable.`,"⚖️ Weigh yourself weekly — daily fluctuations of ±1kg are normal.","🔄 Re-measure body fat every 4–6 weeks and adjust.","🏃 Combine cardio for heart health with strength for metabolism.","🧘 Chronic stress raises cortisol and promotes fat storage."]},
+      premCta:"🔒 Unlock AI Week Plan",premSub:"Premium feature — coming soon"},
+    prem:{badge:"Premium",title:"Everything you need",titleB:"to reach your goal.",
       sub:"One-time payment. No subscription. Forever.",
       plans:[
-        {name:"Free",price:"$0",period:"forever",highlight:false,
-          features:["Calorie calculator","3 goals","Macro split","5 languages","Coach tips"],cta:"Current plan"},
-        {name:"Premium",price:"$4.99",period:"one-time",highlight:true,
-          features:["Everything in Free","🤖 AI Week Plan","🍽️ Meal suggestions","📊 Progress tracking","📄 PDF export","⭐ Priority support"],cta:"Get Premium →"}],
-      popular:"Popular"},
-    footer:{tag:"Precise. Science-backed. Free.",links:["Privacy","Imprint","Contact"],copy:"© 2025 MacroCoach. All rights reserved."},
-    aiPlan:{title:"🤖 Your AI Week Plan",generating:"AI is generating your personal plan...",
-      exportPdf:"📄 Export as PDF",days:["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
-      breakfast:"Breakfast",lunch:"Lunch",dinner:"Dinner",snack:"Snack",
-      total:"Total",kcal:"kcal",prot:"Protein",carbs:"Carbs",fat:"Fat"},
-    tracking:{title:"📊 Progress Tracking",addEntry:"Add entry",date:"Date",
-      weight:"Weight (kg)",kcalEaten:"Calories eaten",notes:"Notes (optional)",
-      save:"Save",noData:"No entries yet. Add your first one!",
-      weightChart:"Weight progress",kcalChart:"Calorie overview",delete:"Delete",
-      target:"Target",actual:"Actual"},
+        {name:"Free",price:"$0",period:"forever",hi:false,
+          features:["Calorie calculator","3 goals (Cut/Bulk/Maintain)","Macro breakdown","5 languages","Coach tips"],cta:"Current plan"},
+        {name:"Premium",price:"$4.99",period:"one-time",hi:true,
+          features:["Everything in Free","🤖 AI-generated week plan","🍽️ Meal suggestions","📊 Progress tracking","📄 PDF export","⭐ Priority support"],cta:"Get Premium →"}],
+      popular:"Most popular"},
+    footer:{tag:"Precise. Science-backed. Free.",links:["Privacy","Imprint","Contact"],copy:"© 2025 MacroCoach"},
+    modal:{title:"MacroCoach Premium",features:[{e:"🤖",l:"AI Week Plan"},{e:"🍽️",l:"Meal Suggestions"},{e:"📊",l:"Progress Tracking"},{e:"📄",l:"PDF Export"}],
+      soon:"🚀 Coming Soon!",soonSub:"Premium is being set up. Check back soon!",tiktok:"🔔 Follow on TikTok for updates",price:"$4.99",period:"one-time"},
+    tabs:{results:"📊 Results",aiplan:"🤖 Week Plan",tracking:"📈 Tracking"},
+    ai:{title:"🤖 AI Week Plan",gen:"Generate Week Plan",generating:"Generating your plan...",regen:"🔄 New plan",pdf:"📄 Export PDF",err:"Error generating plan. Please try again."},
+    track:{title:"📊 Progress Tracking",add:"+ Add entry",date:"Date",weight:"Weight (kg)",kcal:"Calories eaten",notes:"Notes",save:"Save",empty:"No entries yet. Track your first day!",chart:"Weight trend",del:"×"},
+  },
+  de:{flag:"🇩🇪",name:"Deutsch",
+    nav:{logo:"MacroCoach",start:"Berechnen",premiumBtn:"✦ Premium"},
+    hero:{badge:"KI-gestützter Ernährungscoach",h1:"Dein Körper.",h2:"Dein Ziel.",h3:"Dein Plan.",
+      sub:"Präzise Kalorienberechnung basierend auf deiner Körperzusammensetzung — kostenlos & wissenschaftlich.",
+      cta:"Kostenlos berechnen",ctaSub:"Keine Anmeldung · Keine Werbung · Nur Ergebnisse",
+      stats:[{v:"50k+",l:"Nutzer"},{v:"99%",l:"Genauigkeit"},{v:"3",l:"Ziele"},{v:"5",l:"Sprachen"}]},
+    goals:{title:"Was ist dein Ziel?",list:[
+      {key:"cut",emoji:"🔥",label:"Abnehmen",desc:"Fett verlieren, Muskeln erhalten",color:C.orange},
+      {key:"bulk",emoji:"💪",label:"Aufbauen",desc:"Muskelmasse & Kraft aufbauen",color:C.green},
+      {key:"maint",emoji:"⚖️",label:"Halten",desc:"Gewicht konstant halten",color:C.cyan}]},
+    form:{title:"Deine Daten",gender:"Geschlecht",male:"♂  Mann",female:"♀  Frau",
+      age:"Alter",ageU:" J",weight:"Gewicht",weightU:" kg",height:"Größe",heightU:" cm",
+      kfa:"Körperfettanteil",kfaU:"%",actTitle:"Aktivitätslevel",
+      acts:[{l:"Kaum aktiv",d:"Bürojob, kein Sport"},{l:"Leicht aktiv",d:"1–2× Sport / Woche"},
+        {l:"Moderat aktiv",d:"3–5× Sport / Woche"},{l:"Sehr aktiv",d:"6–7× Sport / Woche"},
+        {l:"Extrem aktiv",d:"Athleten / Doppeleinheiten"}],
+      btn:"Plan berechnen ⚡"},
+    res:{tdee:"Dein Erhaltungsbedarf (TDEE)",kcalDay:"kcal / Tag",bmr:"BMR",lean:"Magermasse",
+      gl:{cut:"Deine Cut-Pläne",bulk:"Deine Bulk-Pläne",maint:"Dein Erhaltungsplan"},
+      tiers:{
+        cut:[{k:"mod",l:"Moderat",def:300,note:"~0.3 kg/Wo."},{k:"agg",l:"Aggressiv",def:500,note:"~0.5 kg/Wo."},{k:"ext",l:"Extrem",def:750,note:"~0.75 kg/Wo. ⚠️"}],
+        bulk:[{k:"lean",l:"Lean Bulk",sur:200,note:"~0.2 kg/Wo."},{k:"mod",l:"Moderat",sur:400,note:"~0.4 kg/Wo."},{k:"dirty",l:"Dirty Bulk",sur:700,note:"~0.7 kg/Wo. ⚠️"}],
+        maint:[{k:"m",l:"Erhalt",sur:0,note:"±0 kg/Wo."}]},
+      prot:"Protein",carbs:"Carbs",fat:"Fett",def:"Defizit",sur:"Überschuss",
+      tips:{title:"Coach-Tipps",
+        cut:(p)=>[`🥩 Mindestens ${p}g Protein/Tag — schützt Muskelmasse beim Cut.`,"💧 35–40ml Wasser pro kg Körpergewicht täglich.","🏋️ Krafttraining beibehalten — Muskeln sind dein Stoffwechselmotor.","😴 7–9h Schlaf. Schlafmangel sabotiert Fettabbau.","⚠️ Extremes Defizit nur kurzfristig — dann Diätpause einplanen."],
+        bulk:(p)=>[`🥩 Mindestens ${p}g Protein/Tag — essenziell für Muskelaufbau.`,"📈 Progressiv überlasten — jede Woche mehr Gewicht oder Wiederholungen.","💤 8–9h Schlaf: Testosteron & Wachstumshormon steigen im Tiefschlaf.","🥗 Nährstoffdichte Lebensmittel statt leere Kalorien.","📅 Dirty Bulk nur für Hardgainer — erhöht langfristig Körperfett."],
+        maint:(p)=>[`🥩 ${p}g Protein/Tag hält Muskeln & Sättigung stabil.`,"⚖️ Wöchentlich wiegen — tägliche Schwankungen von ±1 kg sind normal.","🔄 Alle 4–6 Wochen Körperzusammensetzung neu messen.","🏃 Kardio für Herzgesundheit, Kraft für Stoffwechsel kombinieren.","🧘 Chronischer Stress erhöht Cortisol und fördert Fetteinlagerung."]},
+      premCta:"🔒 KI-Wochenplan freischalten",premSub:"Premium Feature — bald verfügbar"},
+    prem:{badge:"Premium",title:"Alles was du brauchst,",titleB:"um dein Ziel zu erreichen.",
+      sub:"Einmalige Zahlung. Kein Abo. Für immer.",
+      plans:[
+        {name:"Gratis",price:"0€",period:"für immer",hi:false,
+          features:["Kalorienrechner","3 Ziele (Cut/Bulk/Halten)","Makro-Aufteilung","5 Sprachen","Coach-Tipps"],cta:"Aktueller Plan"},
+        {name:"Premium",price:"4,99€",period:"einmalig",hi:true,
+          features:["Alles aus Gratis","🤖 KI-Wochenplan","🍽️ Mahlzeitenvorschläge","📊 Fortschritts-Tracking","📄 PDF-Export","⭐ Prioritäts-Support"],cta:"Premium holen →"}],
+      popular:"Beliebt"},
+    footer:{tag:"Präzise. Wissenschaftlich. Kostenlos.",links:["Datenschutz","Impressum","Kontakt"],copy:"© 2025 MacroCoach"},
+    modal:{title:"MacroCoach Premium",features:[{e:"🤖",l:"KI-Wochenplan"},{e:"🍽️",l:"Mahlzeitenvorschläge"},{e:"📊",l:"Fortschritts-Tracking"},{e:"📄",l:"PDF Export"}],
+      soon:"🚀 Bald verfügbar!",soonSub:"Premium wird eingerichtet. Schau bald wieder vorbei!",tiktok:"🔔 Folge uns auf TikTok für Updates",price:"4,99€",period:"einmalig"},
+    tabs:{results:"📊 Ergebnis",aiplan:"🤖 Wochenplan",tracking:"📈 Tracking"},
+    ai:{title:"🤖 Dein KI-Wochenplan",gen:"Wochenplan generieren",generating:"Plan wird generiert...",regen:"🔄 Neuer Plan",pdf:"📄 Als PDF",err:"Fehler. Bitte erneut versuchen."},
+    track:{title:"📊 Fortschritts-Tracking",add:"+ Eintrag",date:"Datum",weight:"Gewicht (kg)",kcal:"Gegessene kcal",notes:"Notizen",save:"Speichern",empty:"Noch keine Einträge.",chart:"Gewichtsverlauf",del:"×"},
   },
 };
-// Add minimal es/fr/tr (same structure, short)
 T.es={...T.en,flag:"🇪🇸",name:"Español"};
 T.fr={...T.en,flag:"🇫🇷",name:"Français"};
 T.tr={...T.en,flag:"🇹🇷",name:"Türkçe"};
 
-const ACT_FACTORS=[1.2,1.375,1.55,1.725,1.9];
-const GOAL_COLORS={cut:"#ff7b35",bulk:"#00ff9d",maint:"#00d4ff"};
-const TIER_COLORS=["#00ff9d","#00d4ff","#ff7b35"];
-const cyan="#00d4ff",green="#00ff9d",orange="#ff7b35",gold="#f59e0b";
-
-// ── Components ────────────────────────────────────────────────────────────────
+// ── Ring ──────────────────────────────────────────────────────────────────────
 function Ring({value,max,label,color,size=160}){
   const[d,setD]=useState(0);
-  const r=size/2*0.78,circ=2*Math.PI*r;
+  const r=size/2*.78,circ=2*Math.PI*r;
   useEffect(()=>{
     if(!value){setD(0);return;}
-    let s=null;const dur=900,to=value;
-    const step=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/dur,1),e=1-Math.pow(1-p,3);setD(Math.round(to*e));if(p<1)requestAnimationFrame(step);};
-    requestAnimationFrame(step);
+    let s=null;const to=value;
+    const go=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/900,1),e=1-Math.pow(1-p,3);setD(Math.round(to*e));if(p<1)requestAnimationFrame(go);};
+    requestAnimationFrame(go);
   },[value]);
-  const off=circ*(1-Math.min(d/max,1));
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
       <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e2530" strokeWidth={size*0.09}/>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={size*0.09}
-          strokeDasharray={circ} strokeDashoffset={value?off:circ} strokeLinecap="round"
-          style={{transition:"stroke-dashoffset 0.05s linear"}}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#161e2a" strokeWidth={size*.09}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={size*.09}
+          strokeDasharray={circ} strokeDashoffset={value?circ*(1-Math.min(d/max,1)):circ}
+          strokeLinecap="round" style={{transition:"stroke-dashoffset .05s linear",filter:`drop-shadow(0 0 6px ${color}88)`}}/>
         <text x={size/2} y={size/2+2} textAnchor="middle" dominantBaseline="middle"
-          fill="#f0f4f8" fontSize={size*0.17} fontWeight="700" fontFamily="monospace"
+          fill="#eef2f7" fontSize={size*.165} fontWeight="800" fontFamily="'JetBrains Mono',monospace"
           style={{transformOrigin:`${size/2}px ${size/2}px`,transform:"rotate(90deg)"}}>
           {d>0?d.toLocaleString():"–"}
         </text>
       </svg>
-      <span style={{color:"#8a9bb0",fontSize:11,letterSpacing:2,textTransform:"uppercase"}}>{label}</span>
+      <span style={{color:"#6b7a8d",fontSize:10,letterSpacing:2.5,textTransform:"uppercase",fontWeight:600}}>{label}</span>
     </div>
   );
 }
 
-function Slider({label,value,min,max,unit,onChange,color=cyan}){
+// ── Slider ────────────────────────────────────────────────────────────────────
+function Slider({label,value,min,max,unit,onChange,color=C.cyan}){
   const pct=((value-min)/(max-min))*100;
   return(
-    <div style={{marginBottom:20}}>
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-        <span style={{color:"#8a9bb0",fontSize:13}}>{label}</span>
-        <span style={{color,fontFamily:"monospace",fontSize:15,fontWeight:700}}>{value}{unit}</span>
+    <div style={{marginBottom:22}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <span style={{color:"#8a96a8",fontSize:13,fontWeight:500}}>{label}</span>
+        <span style={{color,fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700,background:`${color}18`,padding:"2px 10px",borderRadius:6}}>{value}{unit}</span>
       </div>
-      <div style={{position:"relative",height:6,borderRadius:3,background:"#1e2530"}}>
-        <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${pct}%`,borderRadius:3,background:`linear-gradient(90deg,${color}88,${color})`}}/>
-        <input type="range" min={min} max={max} value={value} onChange={e=>onChange(Number(e.target.value))}
-          style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0,cursor:"pointer",margin:0}}/>
+      <div style={{position:"relative",height:8,borderRadius:4,background:"#161e2a"}}>
+        <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${pct}%`,borderRadius:4,background:`linear-gradient(90deg,${color}66,${color})`,transition:"width .05s"}}/>
+        <input type="range" min={min} max={max} value={value} onChange={e=>onChange(Number(e.target.value))}/>
         <div style={{position:"absolute",top:"50%",left:`${pct}%`,transform:"translate(-50%,-50%)",
-          width:16,height:16,borderRadius:"50%",background:color,border:"2px solid #0d1117",
-          pointerEvents:"none",boxShadow:`0 0 8px ${color}88`}}/>
+          width:20,height:20,borderRadius:"50%",background:color,border:"3px solid #0a0d12",
+          pointerEvents:"none",boxShadow:`0 0 12px ${color}99`,transition:"left .05s"}}/>
       </div>
     </div>
   );
 }
 
-// ── AI Week Plan ──────────────────────────────────────────────────────────────
-function AIPlanSection({result,goal,lang,t,isPremium}){
+// ── Card ──────────────────────────────────────────────────────────────────────
+function Card({children,style={},glow=null}){
+  return(
+    <div style={{background:"#111620",borderRadius:20,border:`1px solid ${glow?glow+"33":"#1e2a3a"}`,
+      padding:"22px 20px",marginBottom:14,
+      boxShadow:glow?`0 0 30px ${glow}15,inset 0 1px 0 ${glow}18`:"0 2px 20px #00000040",...style}}>
+      {children}
+    </div>
+  );
+}
+
+// ── Label ─────────────────────────────────────────────────────────────────────
+function Label({children}){
+  return <div style={{color:"#6b7a8d",fontSize:10,letterSpacing:2.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>{children}</div>;
+}
+
+// ── AI Plan ───────────────────────────────────────────────────────────────────
+function AIPlan({result,goal,lang,t}){
   const[plan,setPlan]=useState(null);
   const[loading,setLoading]=useState(false);
-  const[error,setError]=useState(null);
-  const[unlocked,setUnlocked]=useState(isPremium);
+  const[err,setErr]=useState(null);
+  const tk=result?.tiers[0];
 
-  const targetKcal=result?result.tiers[0]?.kcal:2000;
-
-  async function generatePlan(){
-    setLoading(true);setError(null);
-    const goalName={cut:"cutting (fat loss)",bulk:"bulking (muscle gain)",maint:"maintenance"}[goal];
-    const prompt=`Create a detailed 7-day meal plan for someone with these stats:
-- Goal: ${goalName}
-- Daily calories target: ${targetKcal} kcal
-- Daily protein target: ${result.protein}g
-- Daily carbs: ~${result.tiers[0]?.macros?.carb}g
-- Daily fat: ~${result.tiers[0]?.macros?.fat}g
-
-Return ONLY valid JSON, no markdown, no explanation. Format:
-{"days":[{"day":"Monday","meals":[{"type":"Breakfast","name":"Meal name","kcal":400,"protein":30,"carbs":45,"fat":10},{"type":"Lunch","name":"...","kcal":500,"protein":35,"carbs":50,"fat":15},{"type":"Dinner","name":"...","kcal":550,"protein":40,"carbs":55,"fat":18},{"type":"Snack","name":"...","kcal":200,"protein":15,"carbs":20,"fat":6}]},...7 days total]}
-
-Use realistic, healthy, simple meal names. Vary meals across days. Totals should hit the daily targets.`;
-
+  async function gen(){
+    setLoading(true);setErr(null);
+    const gn={cut:"cutting (fat loss)",bulk:"bulking (muscle gain)",maint:"maintenance"}[goal];
+    const prompt=`Create a 7-day meal plan. Goal: ${gn}. Daily: ${tk?.kcal} kcal, ${result.protein}g protein, ~${tk?.macros?.carb}g carbs, ~${tk?.macros?.fat}g fat.
+Return ONLY valid JSON: {"days":[{"day":"Monday","meals":[{"type":"Breakfast","name":"...","kcal":400,"protein":30,"carbs":45,"fat":10},{"type":"Lunch","name":"...","kcal":500,"protein":35,"carbs":50,"fat":15},{"type":"Dinner","name":"...","kcal":600,"protein":40,"carbs":55,"fat":18},{"type":"Snack","name":"...","kcal":200,"protein":15,"carbs":20,"fat":6}]},...7 days]}
+Use healthy, varied, realistic meals. Hit targets closely.`;
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})
-      });
-      const data=await res.json();
-      const text=data.content?.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(text);
-      setPlan(parsed);
-    }catch(e){setError("Fehler beim Generieren. Bitte erneut versuchen.");}
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+      const data=await r.json();
+      const txt=data.content?.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
+      setPlan(JSON.parse(txt));
+    }catch(e){setErr(t.ai.err);}
     setLoading(false);
   }
 
-  function exportPDF(){
-    const el=document.getElementById("ai-plan-print");
+  function pdf(){
+    const el=document.getElementById("plan-print");
     if(!el)return;
     const orig=document.body.innerHTML;
-    document.body.innerHTML=`<div style="font-family:sans-serif;padding:20px;color:#111">${el.innerHTML}</div>`;
-    window.print();
-    document.body.innerHTML=orig;
-    window.location.reload();
+    document.body.innerHTML=`<div style="font-family:sans-serif;padding:24px;color:#111;max-width:700px;margin:auto"><h2 style="margin-bottom:20px">MacroCoach – Week Plan</h2>${el.innerHTML}</div>`;
+    window.print();document.body.innerHTML=orig;window.location.reload();
   }
 
-  if(!result)return null;
+  const mealC={"Breakfast":C.yellow,"Lunch":C.green,"Dinner":C.cyan,"Snack":C.orange};
 
   return(
-    <div style={{background:"#121a24",borderRadius:16,border:`1px solid ${gold}40`,padding:"20px",marginBottom:14}} className="fade-in">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+    <Card glow={C.gold}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
         <div>
-          <div style={{color:gold,fontWeight:800,fontSize:16}}>{t.aiPlan.title}</div>
-          <div style={{color:"#5a6a7a",fontSize:11,marginTop:2}}>✦ Premium Feature</div>
+          <div style={{color:C.gold,fontWeight:800,fontSize:16,marginBottom:2}}>{t.ai.title}</div>
+          <div style={{color:"#5a6878",fontSize:11}}>✦ Premium Feature</div>
         </div>
-        {plan&&(
-          <button onClick={exportPDF} style={{background:`${gold}20`,border:`1px solid ${gold}40`,color:gold,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:8,cursor:"pointer"}}>
-            {t.aiPlan.exportPdf}
-          </button>
-        )}
+        {plan&&<button onClick={pdf} style={{background:`${C.gold}20`,border:`1px solid ${C.gold}50`,color:C.gold,fontSize:11,fontWeight:700,padding:"7px 13px",borderRadius:9,cursor:"pointer"}}>{t.ai.pdf}</button>}
       </div>
-
       {!plan&&!loading&&(
-        <button onClick={generatePlan} style={{width:"100%",padding:"14px",borderRadius:12,border:"none",
-          background:`linear-gradient(90deg,${gold},#fb923c)`,color:"#0d1117",fontWeight:800,fontSize:14,cursor:"pointer",
-          boxShadow:`0 0 20px ${gold}44`}}>
-          🤖 {lang==="de"?"Wochenplan generieren":"Generate Week Plan"}
+        <button onClick={gen} style={{width:"100%",padding:"15px",borderRadius:14,border:"none",
+          background:`linear-gradient(135deg,${C.gold},#fb923c)`,color:"#0a0d12",fontWeight:800,fontSize:14,cursor:"pointer",
+          boxShadow:`0 4px 24px ${C.gold}44`,letterSpacing:.3}}>
+          🤖 {t.ai.gen}
         </button>
       )}
-
-      {loading&&(
-        <div style={{textAlign:"center",padding:"32px 0"}}>
-          <div style={{fontSize:32,marginBottom:12}} className="spin">⚙️</div>
-          <div style={{color:"#8a9bb0",fontSize:13}} className="pulse">{t.aiPlan.generating}</div>
-        </div>
-      )}
-
-      {error&&<div style={{color:orange,fontSize:13,textAlign:"center",padding:"12px"}}>{error}</div>}
-
+      {loading&&<div style={{textAlign:"center",padding:"36px 0"}}><div style={{fontSize:36,marginBottom:12,display:"inline-block"}} className="spin">⚙️</div><div style={{color:"#6b7a8d",fontSize:13}} className="pulse">{t.ai.generating}</div></div>}
+      {err&&<div style={{color:C.orange,fontSize:13,textAlign:"center",padding:12,background:`${C.orange}10`,borderRadius:10}}>{err}</div>}
       {plan&&(
-        <div id="ai-plan-print">
+        <div id="plan-print">
           {plan.days.map((day,di)=>{
-            const total=day.meals.reduce((a,m)=>({kcal:a.kcal+m.kcal,protein:a.protein+m.protein,carbs:a.carbs+m.carbs,fat:a.fat+m.fat}),{kcal:0,protein:0,carbs:0,fat:0});
-            const mealColors={"Breakfast":"#ffd93d","Lunch":green,"Dinner":cyan,"Snack":orange,"Frühstück":"#ffd93d","Mittagessen":green,"Abendessen":cyan,"Snack":orange};
+            const tot=day.meals.reduce((a,m)=>({k:a.k+m.kcal,p:a.p+m.protein,c:a.c+m.carbs,f:a.f+m.fat}),{k:0,p:0,c:0,f:0});
             return(
-              <div key={di} style={{marginBottom:12,borderRadius:12,border:"1px solid #1e2d3d",overflow:"hidden"}}>
-                <div style={{background:`${gold}18`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{color:gold,fontWeight:700,fontSize:13}}>{day.day}</span>
-                  <span style={{color:"#8a9bb0",fontSize:11,fontFamily:"monospace"}}>{total.kcal} kcal · {total.protein}g P</span>
+              <div key={di} style={{marginBottom:10,borderRadius:14,border:"1px solid #1e2a3a",overflow:"hidden"}}>
+                <div style={{background:`${C.gold}12`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #1e2a3a"}}>
+                  <span style={{color:C.gold,fontWeight:700,fontSize:13}}>{day.day}</span>
+                  <span style={{color:"#6b7a8d",fontSize:11,fontFamily:"'JetBrains Mono',monospace"}}>{tot.k} kcal · {tot.p}g P</span>
                 </div>
-                {day.meals.map((meal,mi)=>{
-                  const mc=mealColors[meal.type]||cyan;
+                {day.meals.map((m,mi)=>{
+                  const mc=mealC[m.type]||C.cyan;
                   return(
-                    <div key={mi} style={{padding:"10px 14px",borderTop:"1px solid #1e2d3d",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div key={mi} style={{padding:"9px 14px",borderBottom:mi<day.meals.length-1?"1px solid #161e2a":"none",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div>
-                        <div style={{fontSize:10,color:mc,fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:1}}>{meal.type}</div>
-                        <div style={{fontSize:13,color:"#c0cdd8",fontWeight:600}}>{meal.name}</div>
+                        <div style={{fontSize:9,color:mc,fontWeight:700,marginBottom:3,textTransform:"uppercase",letterSpacing:1.5}}>{m.type}</div>
+                        <div style={{fontSize:13,color:"#c8d4e0",fontWeight:600}}>{m.name}</div>
                       </div>
-                      <div style={{textAlign:"right",fontSize:10,color:"#5a6a7a",fontFamily:"monospace",lineHeight:1.8}}>
-                        <div style={{color:"#8a9bb0",fontWeight:700}}>{meal.kcal} kcal</div>
-                        <div>P:{meal.protein}g C:{meal.carbs}g F:{meal.fat}g</div>
+                      <div style={{textAlign:"right",fontSize:10,color:"#4a5868",fontFamily:"'JetBrains Mono',monospace",lineHeight:1.9}}>
+                        <div style={{color:"#8a96a8",fontWeight:700}}>{m.kcal}</div>
+                        <div>P{m.protein} C{m.carbs} F{m.fat}</div>
                       </div>
                     </div>
                   );
@@ -300,204 +280,159 @@ Use realistic, healthy, simple meal names. Vary meals across days. Totals should
               </div>
             );
           })}
-          <button onClick={generatePlan} style={{width:"100%",padding:"10px",borderRadius:10,border:`1px solid ${gold}40`,
-            background:"transparent",color:gold,fontWeight:700,fontSize:12,cursor:"pointer",marginTop:8}}>
-            🔄 {lang==="de"?"Neuen Plan generieren":"Generate new plan"}
+          <button onClick={gen} style={{width:"100%",padding:"10px",borderRadius:10,border:`1px solid ${C.gold}40`,background:"transparent",color:C.gold,fontWeight:700,fontSize:12,cursor:"pointer",marginTop:4}}>
+            {t.ai.regen}
           </button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
-// ── Progress Tracking ─────────────────────────────────────────────────────────
-function TrackingSection({t,targetKcal}){
-  const STORAGE_KEY="macrocoach_tracking";
-  const[entries,setEntries]=useState(()=>{
-    try{const s=sessionStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):[];}catch{return[];}
-  });
+// ── Tracking ──────────────────────────────────────────────────────────────────
+function Tracking({t,targetKcal}){
+  const SK="mc_track";
+  const[entries,setEntries]=useState(()=>{try{const s=sessionStorage.getItem(SK);return s?JSON.parse(s):[];}catch{return[];}});
   const[form,setForm]=useState({date:new Date().toISOString().split("T")[0],weight:"",kcal:"",notes:""});
-  const[showForm,setShowForm]=useState(false);
+  const[open,setOpen]=useState(false);
 
   function save(){
     if(!form.weight&&!form.kcal)return;
-    const next=[...entries,{...form,id:Date.now()}].sort((a,b)=>a.date.localeCompare(b.date));
-    setEntries(next);
-    try{sessionStorage.setItem(STORAGE_KEY,JSON.stringify(next));}catch{}
-    setForm({date:new Date().toISOString().split("T")[0],weight:"",kcal:"",notes:""});
-    setShowForm(false);
+    const n=[...entries,{...form,id:Date.now()}].sort((a,b)=>a.date.localeCompare(b.date));
+    setEntries(n);try{sessionStorage.setItem(SK,JSON.stringify(n));}catch{}
+    setForm({date:new Date().toISOString().split("T")[0],weight:"",kcal:"",notes:""});setOpen(false);
   }
+  function del(id){const n=entries.filter(e=>e.id!==id);setEntries(n);try{sessionStorage.setItem(SK,JSON.stringify(n));}catch{}}
 
-  function del(id){
-    const next=entries.filter(e=>e.id!==id);
-    setEntries(next);
-    try{sessionStorage.setItem(STORAGE_KEY,JSON.stringify(next));}catch{}
-  }
+  const ws=entries.filter(e=>e.weight).map(e=>parseFloat(e.weight)||0);
+  const maxW=ws.length?Math.max(...ws):100,minW=ws.length?Math.min(...ws):50;
 
-  const maxW=entries.length?Math.max(...entries.map(e=>parseFloat(e.weight)||0)):100;
-  const minW=entries.length?Math.min(...entries.map(e=>parseFloat(e.weight)||999)):50;
+  const inp={width:"100%",background:"#0d1118",border:"1px solid #1e2a3a",borderRadius:9,padding:"9px 12px",color:"#eef2f7",fontSize:13,outline:"none",fontFamily:"'Inter',sans-serif"};
 
   return(
-    <div style={{background:"#121a24",borderRadius:16,border:`1px solid ${gold}40`,padding:"20px",marginBottom:14}} className="fade-in">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <div>
-          <div style={{color:gold,fontWeight:800,fontSize:16}}>{t.tracking.title}</div>
-          <div style={{color:"#5a6a7a",fontSize:11,marginTop:2}}>✦ Premium Feature</div>
-        </div>
-        <button onClick={()=>setShowForm(v=>!v)} style={{background:`${gold}20`,border:`1px solid ${gold}40`,
-          color:gold,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:8,cursor:"pointer"}}>
-          + {t.tracking.addEntry}
-        </button>
+    <Card glow={C.gold}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+        <div><div style={{color:C.gold,fontWeight:800,fontSize:16,marginBottom:2}}>{t.track.title}</div><div style={{color:"#5a6878",fontSize:11}}>✦ Premium Feature</div></div>
+        <button onClick={()=>setOpen(v=>!v)} style={{background:open?`${C.gold}30`:`${C.gold}15`,border:`1px solid ${C.gold}50`,color:C.gold,fontSize:12,fontWeight:700,padding:"7px 13px",borderRadius:9,cursor:"pointer"}}>{t.track.add}</button>
       </div>
-
-      {showForm&&(
-        <div style={{background:"#0d1117",borderRadius:12,padding:"16px",marginBottom:16,border:"1px solid #1e2d3d"}} className="fade-in">
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-            {[
-              {label:t.tracking.date,key:"date",type:"date"},
-              {label:t.tracking.weight,key:"weight",type:"number",placeholder:"75.5"},
-              {label:t.tracking.kcalEaten,key:"kcal",type:"number",placeholder:"2100"},
-            ].map(f=>(
-              <div key={f.key} style={{flex:"1 1 120px"}}>
-                <div style={{color:"#8a9bb0",fontSize:11,marginBottom:5}}>{f.label}</div>
-                <input type={f.type} value={form[f.key]} placeholder={f.placeholder||""}
-                  onChange={e=>setForm(v=>({...v,[f.key]:e.target.value}))}
-                  style={{width:"100%",background:"#121a24",border:"1px solid #1e2d3d",borderRadius:8,
-                    padding:"8px 10px",color:"#f0f4f8",fontSize:13,outline:"none"}}/>
+      {open&&(
+        <div style={{background:"#0d1118",borderRadius:12,padding:"16px",marginBottom:16,border:"1px solid #1e2a3a"}} className="fade-up">
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+            {[{l:t.track.date,k:"date",tp:"date"},{l:t.track.weight,k:"weight",tp:"number",ph:"75.5"},{l:t.track.kcal,k:"kcal",tp:"number",ph:"2100"}].map(f=>(
+              <div key={f.k} style={{flex:"1 1 110px"}}>
+                <div style={{color:"#6b7a8d",fontSize:11,fontWeight:600,marginBottom:5}}>{f.l}</div>
+                <input type={f.tp} value={form[f.k]} placeholder={f.ph||""} onChange={e=>setForm(v=>({...v,[f.k]:e.target.value}))} style={inp}/>
               </div>
             ))}
           </div>
-          <div style={{marginBottom:10}}>
-            <div style={{color:"#8a9bb0",fontSize:11,marginBottom:5}}>{t.tracking.notes}</div>
-            <input type="text" value={form.notes} onChange={e=>setForm(v=>({...v,notes:e.target.value}))}
-              style={{width:"100%",background:"#121a24",border:"1px solid #1e2d3d",borderRadius:8,
-                padding:"8px 10px",color:"#f0f4f8",fontSize:13,outline:"none"}}/>
+          <div style={{marginBottom:12}}>
+            <div style={{color:"#6b7a8d",fontSize:11,fontWeight:600,marginBottom:5}}>{t.track.notes}</div>
+            <input type="text" value={form.notes} onChange={e=>setForm(v=>({...v,notes:e.target.value}))} style={inp}/>
           </div>
-          <button onClick={save} style={{background:`linear-gradient(90deg,${gold},#fb923c)`,border:"none",
-            color:"#0d1117",fontWeight:700,fontSize:13,padding:"9px 20px",borderRadius:8,cursor:"pointer"}}>
-            {t.tracking.save}
-          </button>
+          <button onClick={save} style={{background:`linear-gradient(90deg,${C.gold},#fb923c)`,border:"none",color:"#0a0d12",fontWeight:700,fontSize:13,padding:"9px 22px",borderRadius:9,cursor:"pointer"}}>{t.track.save}</button>
         </div>
       )}
-
-      {entries.length===0?(
-        <div style={{textAlign:"center",padding:"24px 0",color:"#5a6a7a",fontSize:13}}>{t.tracking.noData}</div>
-      ):(
-        <>
-          {/* Mini weight chart */}
-          {entries.filter(e=>e.weight).length>1&&(
-            <div style={{marginBottom:14}}>
-              <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>{t.tracking.weightChart}</div>
-              <div style={{height:60,display:"flex",alignItems:"flex-end",gap:3,background:"#0d1117",borderRadius:8,padding:"8px"}}>
-                {entries.filter(e=>e.weight).map((e,i)=>{
-                  const w=parseFloat(e.weight)||0;
-                  const pct=maxW===minW?50:((w-minW)/(maxW-minW))*100;
-                  const h=Math.max(8,Math.round((pct/100)*44));
-                  return(
-                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                      <div style={{width:"100%",height:h,background:`linear-gradient(180deg,${gold},${gold}88)`,borderRadius:3}}/>
-                      <div style={{fontSize:8,color:"#5a6a7a"}}>{w}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Entries list */}
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {[...entries].reverse().slice(0,7).map(e=>(
-              <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                padding:"10px 12px",background:"#0d1117",borderRadius:10,border:"1px solid #1e2d3d"}}>
-                <div>
-                  <div style={{color:"#c0cdd8",fontSize:12,fontWeight:600}}>{e.date}</div>
-                  <div style={{fontSize:11,color:"#5a6a7a",marginTop:2}}>
-                    {e.weight&&`⚖️ ${e.weight}kg`}{e.weight&&e.kcal?" · ":""}{e.kcal&&`🔥 ${e.kcal} kcal`}
-                    {targetKcal&&e.kcal&&(
-                      <span style={{color:parseInt(e.kcal)<=targetKcal?green:orange,marginLeft:4}}>
-                        ({parseInt(e.kcal)<=targetKcal?"✓":"+"+((parseInt(e.kcal)-targetKcal))})
-                      </span>
-                    )}
-                  </div>
-                  {e.notes&&<div style={{fontSize:10,color:"#5a6a7a",marginTop:1,fontStyle:"italic"}}>{e.notes}</div>}
+      {entries.length===0
+        ?<div style={{textAlign:"center",padding:"28px 0",color:"#4a5868",fontSize:13}}>{t.track.empty}</div>
+        :(
+          <>
+            {ws.length>1&&(
+              <div style={{marginBottom:14}}>
+                <div style={{color:"#6b7a8d",fontSize:10,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:8}}>{t.track.chart}</div>
+                <div style={{height:56,display:"flex",alignItems:"flex-end",gap:3,background:"#0d1118",borderRadius:10,padding:"6px 8px"}}>
+                  {entries.filter(e=>e.weight).map((e,i)=>{
+                    const w=parseFloat(e.weight)||0,pct=maxW===minW?.5:((w-minW)/(maxW-minW));
+                    return(
+                      <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                        <div style={{width:"100%",height:Math.max(6,Math.round(pct*38)),background:`linear-gradient(180deg,${C.gold},${C.gold}66)`,borderRadius:3}}/>
+                        <div style={{fontSize:7,color:"#4a5868"}}>{w}</div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <button onClick={()=>del(e.id)} style={{background:"none",border:"none",color:"#3a4a5a",cursor:"pointer",fontSize:14,padding:"4px"}}>×</button>
               </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+            )}
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {[...entries].reverse().slice(0,8).map(e=>(
+                <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#0d1118",borderRadius:11,border:"1px solid #1a2333"}}>
+                  <div>
+                    <div style={{color:"#c8d4e0",fontSize:12,fontWeight:600}}>{e.date}</div>
+                    <div style={{fontSize:11,color:"#4a5868",marginTop:3}}>
+                      {e.weight&&`⚖️ ${e.weight}kg`}{e.weight&&e.kcal?" · ":""}{e.kcal&&`🔥 ${e.kcal} kcal`}
+                      {targetKcal&&e.kcal&&<span style={{color:parseInt(e.kcal)<=targetKcal?C.green:C.orange,marginLeft:5,fontWeight:600}}>({parseInt(e.kcal)<=targetKcal?"✓":"+"+( parseInt(e.kcal)-targetKcal)})</span>}
+                    </div>
+                    {e.notes&&<div style={{fontSize:10,color:"#4a5868",marginTop:2,fontStyle:"italic"}}>{e.notes}</div>}
+                  </div>
+                  <button onClick={()=>del(e.id)} style={{background:"none",border:"none",color:"#2a3848",cursor:"pointer",fontSize:16,padding:"4px 6px",borderRadius:6}}>{t.track.del}</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )
+      }
+    </Card>
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
 function App(){
-  const[lang,setLang]=useState("de");
-  const[showLangMenu,setShowLangMenu]=useState(false);
+  const[lang,setLang]=useState("en");
+  const[lmenu,setLmenu]=useState(false);
   const[goal,setGoal]=useState("cut");
   const[gender,setGender]=useState("male");
   const[age,setAge]=useState(25);
-  const[weight,setWeight]=useState(85);
-  const[height,setHeight]=useState(178);
+  const[wt,setWt]=useState(85);
+  const[ht,setHt]=useState(178);
   const[kfa,setKfa]=useState(20);
-  const[actIdx,setActIdx]=useState(2);
-  const[result,setResult]=useState(null);
-  const[animKey,setAnimKey]=useState(0);
-  const[showModal,setShowModal]=useState(false);
-  const[isPremium,setIsPremium]=useState(false);
-  const[activeTab,setActiveTab]=useState("results");
-  const resultsRef=useRef(null);
-  const t=T[lang]||T.de;
-  const goalColor=GOAL_COLORS[goal];
+  const[act,setAct]=useState(2);
+  const[res,setRes]=useState(null);
+  const[ak,setAk]=useState(0);
+  const[modal,setModal]=useState(false);
+  const[tab,setTab]=useState("results");
+  const ref=useRef(null);
+  const t=T[lang]||T.en;
+  const gc=GCOL[goal];
 
-  function calculate(){
-    const lbm=weight*(1-kfa/100);
-    const bmr=370+21.6*lbm;
-    const tdee=Math.round(bmr*ACT_FACTORS[actIdx]);
-    const protein=Math.round(lbm*2.2);
-    const tiers=t.results.tiers[goal].map(tier=>{
-      const kcal=goal==="cut"?tdee-tier.def:tdee+(tier.sur||0);
-      const protKcal=protein*4,fatKcal=Math.round(kcal*0.22),carbKcal=kcal-protKcal-fatKcal;
-      return{...tier,kcal,macros:{prot:protein,fat:Math.round(fatKcal/9),carb:Math.round(Math.max(carbKcal,0)/4)}};
+  function calc(){
+    const lbm=wt*(1-kfa/100),bmr=370+21.6*lbm,tdee=Math.round(bmr*ACT[act]),prot=Math.round(lbm*2.2);
+    const tiers=t.res.tiers[goal].map(r=>{
+      const kcal=goal==="cut"?tdee-r.def:tdee+(r.sur||0);
+      const fk=Math.round(kcal*.22),ck=kcal-prot*4-fk;
+      return{...r,kcal,macros:{prot,fat:Math.round(fk/9),carb:Math.round(Math.max(ck,0)/4)}};
     });
-    setAnimKey(k=>k+1);
-    setResult({tdee,bmr:Math.round(bmr),lbm:Math.round(lbm),protein,tiers});
-    setActiveTab("results");
-    setTimeout(()=>resultsRef.current?.scrollIntoView({behavior:"smooth",block:"start"}),100);
+    setAk(k=>k+1);setRes({tdee,bmr:Math.round(bmr),lbm:Math.round(lbm),protein:prot,tiers});setTab("results");
+    setTimeout(()=>ref.current?.scrollIntoView({behavior:"smooth",block:"start"}),120);
   }
 
-  const scrollTo=id=>{document.getElementById(id)?.scrollIntoView({behavior:"smooth"});setShowLangMenu(false);};
-
-  function unlockPremium(){}
+  const go=id=>{document.getElementById(id)?.scrollIntoView({behavior:"smooth"});setLmenu(false);};
 
   return(
-    <div style={{minHeight:"100vh",background:"#0d1117",color:"#f0f4f8"}} onClick={()=>showLangMenu&&setShowLangMenu(false)}>
+    <div style={{minHeight:"100vh",background:"#0a0d12",color:"#eef2f7"}} onClick={()=>lmenu&&setLmenu(false)}>
 
-      {/* NAV */}
-      <nav style={{position:"sticky",top:0,zIndex:50,background:"#0d1117ee",backdropFilter:"blur(12px)",borderBottom:"1px solid #1e2d3d",padding:"0 20px"}}>
-        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:60}}>
-          <span style={{fontWeight:900,fontSize:18,background:`linear-gradient(90deg,${cyan},${green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t.nav.logo}</span>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={()=>scrollTo("pricing")} style={{background:"none",border:"none",color:"#8a9bb0",fontSize:13,cursor:"pointer",padding:"7px 10px",borderRadius:8}}>{t.nav.pricing}</button>
-            {isPremium?(
-              <div style={{display:"flex",alignItems:"center",gap:6,background:`${gold}18`,border:`1px solid ${gold}40`,borderRadius:8,padding:"6px 12px"}}>
-                <span style={{fontSize:12}}>✦</span>
-                <span style={{color:gold,fontSize:12,fontWeight:700}}>Premium</span>
-              </div>
-            ):(
-              <button onClick={()=>setShowModal(true)} style={{background:`linear-gradient(90deg,${gold},#fb923c)`,border:"none",color:"#0d1117",fontWeight:700,fontSize:12,cursor:"pointer",padding:"7px 14px",borderRadius:8}}>✦ Premium</button>
-            )}
-            <button onClick={()=>scrollTo("calculator")} style={{background:`linear-gradient(90deg,${cyan},${green})`,border:"none",color:"#0d1117",fontWeight:700,fontSize:12,cursor:"pointer",padding:"7px 14px",borderRadius:8}}>{t.nav.start}</button>
+      {/* ── NAV ── */}
+      <nav style={{position:"sticky",top:0,zIndex:60,background:"#0a0d12dd",backdropFilter:"blur(16px)",borderBottom:"1px solid #161e2a",padding:"0 16px"}}>
+        <div style={{maxWidth:1080,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:58}}>
+          {/* Logo */}
+          <div>
+            <div style={{fontWeight:900,fontSize:17,background:`linear-gradient(90deg,${C.cyan},${C.green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.1}}>{t.nav.logo}</div>
+            <div style={{fontSize:9,color:"#3a4858",fontWeight:500,letterSpacing:.5,marginTop:1}}>by christhetic</div>
+          </div>
+          {/* Right */}
+          <div style={{display:"flex",alignItems:"center",gap:7}}>
+            <button onClick={()=>setModal(true)} style={{background:`linear-gradient(90deg,${C.gold},#fb923c)`,border:"none",color:"#0a0d12",fontWeight:700,fontSize:11,cursor:"pointer",padding:"7px 13px",borderRadius:9,whiteSpace:"nowrap"}}>✦ Premium</button>
+            <button onClick={()=>go("calculator")} style={{background:`linear-gradient(90deg,${C.cyan},${C.green})`,border:"none",color:"#0a0d12",fontWeight:700,fontSize:11,cursor:"pointer",padding:"7px 13px",borderRadius:9,whiteSpace:"nowrap"}} className="hide-sm">{t.nav.start}</button>
+            {/* Lang */}
             <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
-              <button onClick={()=>setShowLangMenu(v=>!v)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,border:"1.5px solid #1e2d3d",background:"#121a24",color:"#8a9bb0",fontSize:13,cursor:"pointer"}}>
-                <span style={{fontSize:15}}>{T[lang].flag}</span><span style={{fontSize:9,opacity:0.5}}>▼</span>
+              <button onClick={()=>setLmenu(v=>!v)} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 10px",borderRadius:9,border:"1px solid #1e2a3a",background:"#111620",color:"#8a96a8",fontSize:13,cursor:"pointer"}}>
+                <span style={{fontSize:16}}>{T[lang].flag}</span>
+                <span style={{fontSize:9,opacity:.5}}>▾</span>
               </button>
-              {showLangMenu&&(
-                <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:"#121a24",border:"1px solid #1e2d3d",borderRadius:12,overflow:"hidden",minWidth:150,boxShadow:"0 8px 32px #000a",zIndex:100}}>
+              {lmenu&&(
+                <div style={{position:"absolute",right:0,top:"calc(100% + 8px)",background:"#111620",border:"1px solid #1e2a3a",borderRadius:14,overflow:"hidden",minWidth:148,boxShadow:"0 12px 40px #00000088",zIndex:100}}>
                   {Object.entries(T).map(([k,l])=>(
-                    <button key={k} onClick={()=>{setLang(k);setResult(null);setShowLangMenu(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 16px",background:lang===k?`${cyan}15`:"transparent",border:"none",color:lang===k?cyan:"#8a9bb0",fontSize:13,cursor:"pointer",fontWeight:lang===k?700:400,textAlign:"left",borderBottom:"1px solid #1e2d3d"}}>
-                      <span style={{fontSize:15}}>{l.flag}</span>{l.name}
+                    <button key={k} onClick={()=>{setLang(k);setRes(null);setLmenu(false);}}
+                      style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 16px",background:lang===k?`${C.cyan}18`:"transparent",border:"none",color:lang===k?C.cyan:"#8a96a8",fontSize:13,cursor:"pointer",fontWeight:lang===k?700:500,textAlign:"left",borderBottom:"1px solid #161e2a"}}>
+                      <span style={{fontSize:16}}>{l.flag}</span>{l.name}
                     </button>
                   ))}
                 </div>
@@ -507,258 +442,272 @@ function App(){
         </div>
       </nav>
 
-      {/* HERO */}
-      <section id="hero" style={{background:"radial-gradient(ellipse 80% 60% at 50% -10%,#00d4ff18,transparent)",padding:"80px 20px 60px",textAlign:"center"}}>
-        <div style={{maxWidth:540,margin:"0 auto"}}>
-          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${cyan}15`,border:`1px solid ${cyan}40`,borderRadius:999,padding:"5px 14px",marginBottom:24}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:cyan,display:"inline-block"}}/>
-            <span style={{color:cyan,fontSize:11,fontWeight:600,letterSpacing:1}}>{t.hero.badge}</span>
+      {/* ── HERO ── */}
+      <section id="hero" style={{background:"radial-gradient(ellipse 90% 55% at 50% -5%,#00d4ff14,transparent),radial-gradient(ellipse 50% 40% at 80% 50%,#00ff9d08,transparent)",padding:"88px 20px 68px",textAlign:"center"}}>
+        <div style={{maxWidth:560,margin:"0 auto"}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${C.cyan}12`,border:`1px solid ${C.cyan}35`,borderRadius:999,padding:"6px 16px",marginBottom:28}}>
+            <span style={{width:7,height:7,borderRadius:"50%",background:C.cyan,display:"inline-block",boxShadow:`0 0 8px ${C.cyan}`}}/>
+            <span style={{color:C.cyan,fontSize:11,fontWeight:700,letterSpacing:1.2}}>{t.hero.badge}</span>
           </div>
-          <h1 style={{margin:"0 0 18px",fontSize:"clamp(28px,8vw,52px)",fontWeight:900,lineHeight:1.1,letterSpacing:-1}}>
-            <span style={{color:"#f0f4f8"}}>{t.hero.h1a} </span>
-            <span style={{background:`linear-gradient(90deg,${cyan},${green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t.hero.h1b} </span>
-            <span style={{color:"#f0f4f8"}}>{t.hero.h1c}</span>
+          <h1 style={{margin:"0 0 20px",fontSize:"clamp(30px,9vw,56px)",fontWeight:900,lineHeight:1.08,letterSpacing:-1.5}}>
+            <span style={{color:"#d8e4f0"}}>{t.hero.h1} </span>
+            <span style={{background:`linear-gradient(90deg,${C.cyan},${C.green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t.hero.h2} </span>
+            <span style={{color:"#d8e4f0"}}>{t.hero.h3}</span>
           </h1>
-          <p style={{color:"#8a9bb0",fontSize:16,lineHeight:1.6,marginBottom:32}}>{t.hero.sub}</p>
-          <button onClick={()=>scrollTo("calculator")} style={{background:`linear-gradient(90deg,${cyan},${green})`,border:"none",color:"#0d1117",fontWeight:800,fontSize:16,cursor:"pointer",padding:"15px 36px",borderRadius:12,boxShadow:`0 0 36px ${cyan}44`,marginBottom:8}}>{t.hero.cta}</button>
-          <div style={{color:"#5a6a7a",fontSize:12,marginBottom:48}}>{t.hero.ctaSub}</div>
-          <div style={{display:"flex",justifyContent:"center",gap:"clamp(16px,4vw,44px)",flexWrap:"wrap"}}>
+          <p style={{color:"#6b7a8d",fontSize:16,lineHeight:1.7,marginBottom:36,maxWidth:440,margin:"0 auto 36px"}}>{t.hero.sub}</p>
+          <button onClick={()=>go("calculator")} style={{background:`linear-gradient(135deg,${C.cyan},${C.green})`,border:"none",color:"#0a0d12",fontWeight:800,fontSize:16,cursor:"pointer",padding:"16px 40px",borderRadius:14,boxShadow:`0 4px 40px ${C.cyan}44`,marginBottom:10,letterSpacing:.3}}>{t.hero.cta}</button>
+          <div style={{color:"#3a4858",fontSize:12,marginBottom:56}}>{t.hero.ctaSub}</div>
+          <div style={{display:"flex",justifyContent:"center",gap:"clamp(20px,5vw,52px)",flexWrap:"wrap"}}>
             {t.hero.stats.map(s=>(
               <div key={s.l} style={{textAlign:"center"}}>
-                <div style={{fontFamily:"monospace",fontWeight:800,fontSize:20,background:`linear-gradient(90deg,${cyan},${green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{s.v}</div>
-                <div style={{color:"#5a6a7a",fontSize:11,marginTop:2}}>{s.l}</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontWeight:800,fontSize:22,background:`linear-gradient(90deg,${C.cyan},${C.green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{s.v}</div>
+                <div style={{color:"#4a5868",fontSize:11,marginTop:3,fontWeight:500}}>{s.l}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CALCULATOR */}
-      <section id="calculator" style={{background:"#080c10",padding:"48px 20px"}}>
+      {/* ── CALCULATOR ── */}
+      <section id="calculator" style={{background:"#080b0f",padding:"52px 20px 60px"}}>
         <div style={{maxWidth:520,margin:"0 auto"}}>
-          <h2 style={{textAlign:"center",fontWeight:800,fontSize:20,marginBottom:20}}>{t.goals.title}</h2>
-          <div style={{display:"flex",gap:10,marginBottom:28}}>
+
+          {/* Goal */}
+          <h2 style={{textAlign:"center",fontWeight:800,fontSize:20,marginBottom:20,color:"#d8e4f0"}}>{t.goals.title}</h2>
+          <div style={{display:"flex",gap:10,marginBottom:30}}>
             {t.goals.list.map(g=>(
-              <button key={g.key} onClick={()=>{setGoal(g.key);setResult(null);}} style={{flex:1,padding:"14px 6px",borderRadius:14,cursor:"pointer",textAlign:"center",border:`2px solid ${goal===g.key?g.color:"#1e2d3d"}`,background:goal===g.key?`${g.color}18`:"#121a24"}}>
-                <div style={{fontSize:22,marginBottom:3}}>{g.emoji}</div>
-                <div style={{fontWeight:700,fontSize:12,color:goal===g.key?g.color:"#8a9bb0"}}>{g.label}</div>
-                <div style={{fontSize:9,color:"#5a6a7a",marginTop:2,lineHeight:1.3}}>{g.desc}</div>
+              <button key={g.key} onClick={()=>{setGoal(g.key);setRes(null);}} style={{flex:1,padding:"16px 6px",borderRadius:16,cursor:"pointer",textAlign:"center",
+                border:`2px solid ${goal===g.key?g.color+"99":"#161e2a"}`,
+                background:goal===g.key?`${g.color}15`:"#111620",
+                transition:"all .18s",boxShadow:goal===g.key?`0 0 20px ${g.color}22`:"none"}}>
+                <div style={{fontSize:24,marginBottom:5}}>{g.emoji}</div>
+                <div style={{fontWeight:700,fontSize:12,color:goal===g.key?g.color:"#8a96a8"}}>{g.label}</div>
+                <div style={{fontSize:9,color:"#3a4858",marginTop:3,lineHeight:1.4}}>{g.desc}</div>
               </button>
             ))}
           </div>
 
-          <div style={{background:"#121a24",borderRadius:20,border:"1px solid #1e2d3d",padding:"24px 20px",marginBottom:16}}>
-            <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:18}}>{t.form.title}</div>
-            <div style={{marginBottom:18}}>
-              <div style={{color:"#8a9bb0",fontSize:11,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>{t.form.gender}</div>
-              <div style={{display:"flex",gap:10}}>
+          {/* Form */}
+          <Card>
+            <Label>{t.form.title}</Label>
+            <div style={{marginBottom:20}}>
+              <div style={{color:"#6b7a8d",fontSize:11,fontWeight:600,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>{t.form.gender}</div>
+              <div style={{display:"flex",gap:8}}>
                 {[["male",t.form.male],["female",t.form.female]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setGender(v)} style={{flex:1,padding:"10px 0",borderRadius:10,border:`1.5px solid ${gender===v?cyan:"#1e2d3d"}`,background:gender===v?`${cyan}15`:"#0d1117",color:gender===v?cyan:"#5a6a7a",fontWeight:700,fontSize:13,cursor:"pointer"}}>{l}</button>
+                  <button key={v} onClick={()=>setGender(v)} style={{flex:1,padding:"12px 0",borderRadius:11,
+                    border:`1.5px solid ${gender===v?C.cyan:"#1e2a3a"}`,
+                    background:gender===v?`${C.cyan}15`:"#0d1118",
+                    color:gender===v?C.cyan:"#4a5868",fontWeight:700,fontSize:13,cursor:"pointer",
+                    display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>{l}</button>
                 ))}
               </div>
             </div>
-            <Slider label={t.form.age} value={age} min={16} max={70} onChange={setAge} unit={t.form.ageU} color={cyan}/>
-            <Slider label={t.form.weight} value={weight} min={40} max={200} onChange={setWeight} unit={t.form.weightU} color={green}/>
-            <Slider label={t.form.height} value={height} min={140} max={220} onChange={setHeight} unit={t.form.heightU} color={cyan}/>
-            <Slider label={t.form.kfa} value={kfa} min={5} max={50} onChange={setKfa} unit={t.form.kfaU} color={orange}/>
-          </div>
+            <Slider label={t.form.age} value={age} min={16} max={70} onChange={setAge} unit={t.form.ageU} color={C.cyan}/>
+            <Slider label={t.form.weight} value={wt} min={40} max={200} onChange={setWt} unit={t.form.weightU} color={C.green}/>
+            <Slider label={t.form.height} value={ht} min={140} max={220} onChange={setHt} unit={t.form.heightU} color={C.cyan}/>
+            <Slider label={t.form.kfa} value={kfa} min={5} max={50} onChange={setKfa} unit={t.form.kfaU} color={C.orange}/>
+          </Card>
 
-          <div style={{marginBottom:20}}>
-            <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:10}}>{t.form.actTitle}</div>
+          {/* Activity */}
+          <div style={{marginBottom:22}}>
+            <Label>{t.form.actTitle}</Label>
             <div style={{display:"flex",flexDirection:"column",gap:7}}>
               {t.form.acts.map((a,i)=>(
-                <button key={i} onClick={()=>setActIdx(i)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 14px",borderRadius:10,border:`1.5px solid ${actIdx===i?goalColor:"#1e2d3d"}`,background:actIdx===i?`${goalColor}10`:"#121a24",color:actIdx===i?goalColor:"#5a6a7a",cursor:"pointer",textAlign:"left"}}>
+                <button key={i} onClick={()=>setAct(i)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                  padding:"12px 16px",borderRadius:12,cursor:"pointer",textAlign:"left",
+                  border:`1.5px solid ${act===i?gc+"88":"#161e2a"}`,
+                  background:act===i?`${gc}12`:"#111620",
+                  color:act===i?gc:"#4a5868",transition:"all .15s"}}>
                   <div>
                     <div style={{fontWeight:700,fontSize:13}}>{a.l}</div>
-                    <div style={{fontSize:10,opacity:0.7,marginTop:1}}>{a.d}</div>
+                    <div style={{fontSize:10,opacity:.65,marginTop:2}}>{a.d}</div>
                   </div>
-                  <span style={{fontFamily:"monospace",fontSize:11,opacity:actIdx===i?1:0.4}}>×{ACT_FACTORS[i]}</span>
+                  <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,opacity:act===i?1:.4}}>×{ACT[i]}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <button onClick={calculate} style={{width:"100%",padding:"16px 0",borderRadius:12,border:"none",background:`linear-gradient(90deg,${goalColor},${goalColor}bb)`,color:"#0d1117",fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:`0 0 24px ${goalColor}44`,marginBottom:32}}>{t.form.btn}</button>
+          {/* CTA */}
+          <button onClick={calc} style={{width:"100%",padding:"17px 0",borderRadius:14,border:"none",
+            background:`linear-gradient(135deg,${gc},${gc}bb)`,color:"#0a0d12",fontWeight:800,fontSize:15,cursor:"pointer",
+            boxShadow:`0 4px 28px ${gc}44`,marginBottom:36,letterSpacing:.3}}>
+            {t.form.btn}
+          </button>
 
-          {/* Results area */}
-          {result&&(
-            <div key={animKey} ref={resultsRef}>
-              {/* Tab bar */}
-              <div style={{display:"flex",gap:6,marginBottom:16,background:"#121a24",borderRadius:12,padding:4}}>
-                {[
-                  {k:"results",l:"📊 "+( lang==="de"?"Ergebnis":"Results")},
-                  {k:"aiplan",l:"🤖 "+( lang==="de"?"Wochenplan":"Week Plan")},
-                  {k:"tracking",l:"📈 Tracking"},
-                ].map(tab=>(
-                  <button key={tab.k} onClick={()=>{if(tab.k!=="results"&&!isPremium){setShowModal(true);}else{setActiveTab(tab.k);}}}
-                    style={{flex:1,padding:"9px 4px",borderRadius:9,border:"none",fontSize:11,fontWeight:700,cursor:"pointer",
-                      background:activeTab===tab.k?goalColor:"transparent",
-                      color:activeTab===tab.k?"#0d1117":isPremium||tab.k==="results"?"#8a9bb0":"#5a6a7a",
-                      position:"relative"}}>
-                    {tab.l}
-                    {tab.k!=="results"&&!isPremium&&<span style={{position:"absolute",top:3,right:4,fontSize:8}}>🔒</span>}
+          {/* Results */}
+          {res&&(
+            <div key={ak} ref={ref}>
+              {/* Tabs */}
+              <div style={{display:"flex",gap:5,marginBottom:16,background:"#111620",borderRadius:13,padding:4,border:"1px solid #161e2a"}}>
+                {[{k:"results",l:t.tabs.results},{k:"aiplan",l:t.tabs.aiplan},{k:"tracking",l:t.tabs.tracking}].map(tb=>(
+                  <button key={tb.k} onClick={()=>{if(tb.k!=="results"){setModal(true);}else{setTab(tb.k);}}}
+                    style={{flex:1,padding:"9px 4px",borderRadius:10,border:"none",fontSize:10,fontWeight:700,cursor:"pointer",
+                      background:tab===tb.k?gc:"transparent",
+                      color:tab===tb.k?"#0a0d12":"#4a5868",position:"relative",transition:"all .15s",letterSpacing:.2}}>
+                    {tb.l}
+                    {tb.k!=="results"&&<span style={{position:"absolute",top:3,right:4,fontSize:8}}>🔒</span>}
                   </button>
                 ))}
               </div>
 
               {/* Results tab */}
-              {activeTab==="results"&&(
-                <div className="fade-in">
-                  <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"24px 20px",marginBottom:14,textAlign:"center"}}>
-                    <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:14}}>{t.results.tdeeLabel}</div>
-                    <Ring value={result.tdee} max={4500} label={t.results.kcalDay} color={cyan} size={160}/>
-                    <div style={{marginTop:14,display:"flex",justifyContent:"center",gap:24}}>
-                      {[{l:t.results.bmr,v:`${result.bmr} kcal`},{l:t.results.lean,v:`${result.lbm} kg`}].map(x=>(
+              {tab==="results"&&(
+                <div className="fade-up">
+                  {/* TDEE */}
+                  <Card style={{textAlign:"center"}} glow={C.cyan}>
+                    <Label>{t.res.tdee}</Label>
+                    <Ring value={res.tdee} max={4500} label={t.res.kcalDay} color={C.cyan} size={168}/>
+                    <div style={{marginTop:18,display:"flex",justifyContent:"center",gap:32}}>
+                      {[{l:t.res.bmr,v:`${res.bmr} kcal`},{l:t.res.lean,v:`${res.lbm} kg`}].map(x=>(
                         <div key={x.l} style={{textAlign:"center"}}>
-                          <div style={{color:"#5a6a7a",fontSize:10}}>{x.l}</div>
-                          <div style={{color:"#8a9bb0",fontFamily:"monospace",fontSize:13,fontWeight:700}}>{x.v}</div>
+                          <div style={{color:"#3a4858",fontSize:10,fontWeight:600,marginBottom:3}}>{x.l}</div>
+                          <div style={{color:"#8a96a8",fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700}}>{x.v}</div>
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </Card>
 
-                  <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"20px",marginBottom:14}}>
-                    <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:16}}>{t.results.goalLabel[goal]}</div>
-                    {result.tiers.map(({k,l,def,sur,note,kcal,macros},ci)=>{
-                      const tc=TIER_COLORS[ci];
-                      const diffLabel=goal==="cut"?`−${def} kcal ${t.results.deficit}`:sur===0?"±0 kcal":`+${sur} kcal ${t.results.surplus}`;
+                  {/* Tiers */}
+                  <Card>
+                    <Label>{t.res.gl[goal]}</Label>
+                    {res.tiers.map(({k,l,def,sur,note,kcal,macros},ci)=>{
+                      const tc=TCOL[ci];
+                      const dl=goal==="cut"?`−${def} kcal ${t.res.def}`:sur===0?"±0 kcal":`+${sur} kcal ${t.res.sur}`;
                       return(
-                        <div key={k} style={{marginBottom:ci<result.tiers.length-1?14:0,padding:"14px",borderRadius:12,border:`1px solid ${tc}30`,background:`${tc}08`}}>
+                        <div key={k} style={{marginBottom:ci<res.tiers.length-1?12:0,padding:"15px",borderRadius:14,
+                          border:`1px solid ${tc}28`,background:`${tc}07`,position:"relative"}}>
+                          {ci===0&&<div style={{position:"absolute",top:-1,right:12,background:tc,color:"#0a0d12",fontSize:9,fontWeight:800,padding:"2px 10px",borderRadius:"0 0 8px 8px",letterSpacing:.5}}>BEST</div>}
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:7}}>
                             <span style={{color:tc,fontWeight:700,fontSize:14}}>{l}</span>
-                            <span style={{color:tc,fontFamily:"monospace",fontSize:18,fontWeight:800}}>{kcal.toLocaleString()} kcal</span>
+                            <span style={{color:tc,fontFamily:"'JetBrains Mono',monospace",fontSize:19,fontWeight:800}}>{kcal.toLocaleString()}<span style={{fontSize:11,marginLeft:3}}>kcal</span></span>
                           </div>
-                          <div style={{fontSize:10,color:"#5a6a7a",marginBottom:10}}>{diffLabel} · {note}</div>
+                          <div style={{fontSize:10,color:"#3a4858",marginBottom:11,fontWeight:500}}>{dl} · {note}</div>
                           <div style={{display:"flex",gap:7}}>
-                            {[{n:t.results.prot,v:macros.prot,c:"#ff6b9d"},{n:t.results.carbs,v:macros.carb,c:"#ffd93d"},{n:t.results.fat,v:macros.fat,c:"#6bcb77"}].map(m=>(
-                              <div key={m.n} style={{flex:1,textAlign:"center",padding:"8px 4px",background:"#0d1117",borderRadius:8,border:`1px solid ${m.c}25`}}>
-                                <div style={{color:m.c,fontFamily:"monospace",fontWeight:700,fontSize:13}}>{m.v}g</div>
-                                <div style={{color:"#5a6a7a",fontSize:9,marginTop:2}}>{m.n}</div>
+                            {[{n:t.res.prot,v:macros.prot,c:C.pink},{n:t.res.carbs,v:macros.carb,c:C.yellow},{n:t.res.fat,v:macros.fat,c:C.lime}].map(m=>(
+                              <div key={m.n} style={{flex:1,textAlign:"center",padding:"9px 4px",background:"#0a0d12",borderRadius:10,border:`1px solid ${m.c}22`}}>
+                                <div style={{color:m.c,fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:13}}>{m.v}g</div>
+                                <div style={{color:"#3a4858",fontSize:9,marginTop:3,fontWeight:600}}>{m.n}</div>
                               </div>
                             ))}
                           </div>
                         </div>
                       );
                     })}
-                  </div>
+                  </Card>
 
-                  <div style={{background:"#121a24",borderRadius:16,border:"1px solid #1e2d3d",padding:"18px 20px",marginBottom:14}}>
-                    <div style={{color:"#8a9bb0",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:12}}>{t.results.tipsTitle}</div>
-                    {t.results.tips[goal](result.protein).map((tip,i)=>(
-                      <div key={i} style={{marginBottom:9,fontSize:13,color:"#8a9bb0",lineHeight:1.6}}>{tip}</div>
-                    ))}
-                  </div>
-
-                  {!isPremium&&(
-                    <button onClick={()=>setShowModal(true)} style={{width:"100%",padding:"16px",borderRadius:14,border:`1.5px solid ${gold}60`,background:`linear-gradient(135deg,${gold}18,${gold}08)`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                      <div style={{textAlign:"left"}}>
-                        <div style={{color:gold,fontWeight:800,fontSize:14}}>{t.results.premiumCta}</div>
-                        <div style={{color:"#8a9bb0",fontSize:11,marginTop:2}}>{t.results.premiumSub}</div>
+                  {/* Tips */}
+                  <Card>
+                    <Label>{t.res.tips.title}</Label>
+                    {t.res.tips[goal](res.protein).map((tip,i)=>(
+                      <div key={i} style={{display:"flex",gap:10,marginBottom:11,fontSize:13,color:"#8a96a8",lineHeight:1.65}}>
+                        <span style={{flexShrink:0}}>{tip.slice(0,2)}</span>
+                        <span>{tip.slice(2)}</span>
                       </div>
-                      <div style={{background:gold,color:"#0d1117",fontWeight:800,fontSize:11,padding:"6px 12px",borderRadius:8}}>Premium ✦</div>
-                    </button>
-                  )}
+                    ))}
+                  </Card>
+
+                  {/* Premium teaser */}
+                  <button onClick={()=>setModal(true)} style={{width:"100%",padding:"18px",borderRadius:16,
+                    border:`1.5px solid ${C.gold}50`,background:`linear-gradient(135deg,${C.gold}12,${C.gold}06)`,
+                    cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",
+                    boxShadow:`0 4px 24px ${C.gold}18`}}>
+                    <div style={{textAlign:"left"}}>
+                      <div style={{color:C.gold,fontWeight:800,fontSize:14,marginBottom:3}}>{t.res.premCta}</div>
+                      <div style={{color:"#4a5868",fontSize:11}}>{t.res.premSub}</div>
+                    </div>
+                    <div style={{background:`linear-gradient(90deg,${C.gold},#fb923c)`,color:"#0a0d12",fontWeight:800,fontSize:11,padding:"8px 14px",borderRadius:10,flexShrink:0}}>Premium ✦</div>
+                  </button>
                 </div>
-              )}
-
-              {/* AI Plan tab */}
-              {activeTab==="aiplan"&&isPremium&&(
-                <AIPlanSection result={result} goal={goal} lang={lang} t={t} isPremium={isPremium}/>
-              )}
-
-              {/* Tracking tab */}
-              {activeTab==="tracking"&&isPremium&&(
-                <TrackingSection t={t} targetKcal={result.tiers[0]?.kcal}/>
               )}
             </div>
           )}
         </div>
       </section>
 
-      {/* PRICING */}
-      <section id="pricing" style={{background:"#0d1117",padding:"80px 20px"}}>
-        <div style={{maxWidth:700,margin:"0 auto"}}>
-          <div style={{textAlign:"center",marginBottom:44}}>
-            <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${gold}18`,border:`1px solid ${gold}40`,borderRadius:999,padding:"5px 14px",marginBottom:18}}>
-              <span style={{color:gold,fontSize:11,fontWeight:700,letterSpacing:1}}>✦ {t.premium.badge}</span>
+      {/* ── PRICING ── */}
+      <section id="pricing" style={{background:"#0a0d12",padding:"80px 20px"}}>
+        <div style={{maxWidth:680,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:48}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${C.gold}15`,border:`1px solid ${C.gold}35`,borderRadius:999,padding:"5px 15px",marginBottom:20}}>
+              <span style={{color:C.gold,fontSize:11,fontWeight:700,letterSpacing:1.2}}>✦ {t.prem.badge}</span>
             </div>
-            <h2 style={{fontWeight:900,fontSize:"clamp(22px,5vw,36px)",margin:"0 0 10px",letterSpacing:-0.5}}>
-              {t.premium.title}<br/>
-              <span style={{background:`linear-gradient(90deg,${gold},#fb923c)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t.premium.titleB}</span>
+            <h2 style={{fontWeight:900,fontSize:"clamp(24px,5vw,38px)",margin:"0 0 12px",letterSpacing:-1,lineHeight:1.1}}>
+              {t.prem.title}<br/>
+              <span style={{background:`linear-gradient(90deg,${C.gold},#fb923c)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t.prem.titleB}</span>
             </h2>
-            <p style={{color:"#8a9bb0",fontSize:14}}>{t.premium.sub}</p>
+            <p style={{color:"#6b7a8d",fontSize:15}}>{t.prem.sub}</p>
           </div>
           <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}}>
-            {t.premium.plans.map((plan,pi)=>(
-              <div key={pi} style={{flex:"1 1 240px",maxWidth:300,borderRadius:20,padding:"26px 22px",position:"relative",border:`2px solid ${plan.highlight?gold:"#1e2d3d"}`,background:plan.highlight?`linear-gradient(135deg,${gold}10,#1a1200)`:"#121a24"}}>
-                {plan.highlight&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(90deg,${gold},#fb923c)`,color:"#0d1117",fontWeight:800,fontSize:10,padding:"3px 14px",borderRadius:999}}>✦ {t.premium.popular}</div>}
-                <div style={{marginBottom:18}}>
-                  <div style={{color:plan.highlight?gold:"#8a9bb0",fontWeight:700,fontSize:13,marginBottom:6}}>{plan.name}</div>
-                  <div style={{display:"flex",alignItems:"baseline",gap:4}}>
-                    <span style={{fontSize:32,fontWeight:900,color:"#f0f4f8"}}>{plan.price}</span>
-                    <span style={{color:"#5a6a7a",fontSize:12}}>/ {plan.period}</span>
+            {t.prem.plans.map((plan,pi)=>(
+              <div key={pi} style={{flex:"1 1 240px",maxWidth:295,borderRadius:22,padding:"28px 24px",position:"relative",
+                border:`2px solid ${plan.hi?C.gold+"66":"#161e2a"}`,
+                background:plan.hi?`linear-gradient(160deg,${C.gold}12,#12100200,#0a0d12)`:"#111620",
+                boxShadow:plan.hi?`0 8px 40px ${C.gold}18`:"none"}}>
+                {plan.hi&&<div style={{position:"absolute",top:-13,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(90deg,${C.gold},#fb923c)`,color:"#0a0d12",fontWeight:800,fontSize:10,padding:"4px 16px",borderRadius:999,letterSpacing:.8,whiteSpace:"nowrap"}}>✦ {t.prem.popular}</div>}
+                <div style={{marginBottom:20}}>
+                  <div style={{color:plan.hi?C.gold:"#6b7a8d",fontWeight:700,fontSize:13,marginBottom:8}}>{plan.name}</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:5}}>
+                    <span style={{fontSize:34,fontWeight:900,color:"#eef2f7"}}>{plan.price}</span>
+                    <span style={{color:"#3a4858",fontSize:13}}>/ {plan.period}</span>
                   </div>
                 </div>
-                <div style={{borderTop:"1px solid #1e2d3d",paddingTop:18,marginBottom:22}}>
+                <div style={{borderTop:"1px solid #161e2a",paddingTop:20,marginBottom:24}}>
                   {plan.features.map((f,fi)=>(
-                    <div key={fi} style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
-                      <span style={{color:plan.highlight?gold:green,fontSize:13}}>✓</span>
-                      <span style={{color:"#c0cdd8",fontSize:12}}>{f}</span>
+                    <div key={fi} style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10}}>
+                      <span style={{color:plan.hi?C.gold:C.green,fontSize:13,marginTop:1,flexShrink:0}}>✓</span>
+                      <span style={{color:"#c8d4e0",fontSize:13,lineHeight:1.4}}>{f}</span>
                     </div>
                   ))}
                 </div>
-                <button onClick={plan.highlight?()=>setShowModal(true):undefined} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"none",cursor:plan.highlight?"pointer":"default",background:plan.highlight?`linear-gradient(90deg,${gold},#fb923c)`:"#1e2d3d",color:plan.highlight?"#0d1117":"#5a6a7a",fontWeight:700,fontSize:13}}>{plan.cta}</button>
+                <button onClick={plan.hi?()=>setModal(true):undefined} style={{width:"100%",padding:"13px 0",borderRadius:11,border:"none",
+                  cursor:plan.hi?"pointer":"default",fontWeight:700,fontSize:13,
+                  background:plan.hi?`linear-gradient(90deg,${C.gold},#fb923c)`:"#161e2a",
+                  color:plan.hi?"#0a0d12":"#3a4858"}}>{plan.cta}</button>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer style={{borderTop:"1px solid #1e2d3d",padding:"36px 20px",background:"#080c10",textAlign:"center"}}>
-        <div style={{fontWeight:900,fontSize:16,background:`linear-gradient(90deg,${cyan},${green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>{t.nav.logo}</div>
-        <div style={{color:"#5a6a7a",fontSize:11,marginBottom:16}}>{t.footer.tag}</div>
-        <div style={{display:"flex",justifyContent:"center",gap:20,marginBottom:16}}>
-          {t.footer.links.map(l=><a key={l} href="#" style={{color:"#5a6a7a",fontSize:11,textDecoration:"none"}}>{l}</a>)}
+      {/* ── FOOTER ── */}
+      <footer style={{borderTop:"1px solid #111820",padding:"44px 20px",background:"#07090d",textAlign:"center"}}>
+        <div style={{fontWeight:900,fontSize:17,background:`linear-gradient(90deg,${C.cyan},${C.green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.1,marginBottom:3}}>MacroCoach</div>
+        <div style={{fontSize:10,color:"#2a3848",fontWeight:500,letterSpacing:.5,marginBottom:16}}>by christhetic</div>
+        <div style={{color:"#3a4858",fontSize:11,marginBottom:18,fontWeight:500}}>{t.footer.tag}</div>
+        <div style={{display:"flex",justifyContent:"center",gap:24,marginBottom:20,flexWrap:"wrap"}}>
+          {t.footer.links.map(l=><a key={l} href="#" style={{color:"#2a3848",fontSize:11,textDecoration:"none",fontWeight:500}}>{l}</a>)}
         </div>
-        <div style={{color:"#3a4a5a",fontSize:10}}>{t.footer.copy}</div>
+        <div style={{color:"#1a2232",fontSize:10}}>{t.footer.copy} · by christhetic</div>
       </footer>
 
-      {/* PREMIUM MODAL */}
-      {showModal&&(
-        <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setShowModal(false)}>
-          <div style={{background:"#121a24",borderRadius:20,border:`2px solid ${gold}60`,padding:"32px 24px",maxWidth:380,width:"100%",position:"relative"}} onClick={e=>e.stopPropagation()}>
-            <button onClick={()=>setShowModal(false)} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"#5a6a7a",fontSize:20,cursor:"pointer"}}>×</button>
-            <div style={{textAlign:"center",marginBottom:20}}>
-              <div style={{fontSize:36,marginBottom:6}}>✨</div>
-              <h3 style={{margin:"0 0 6px",fontWeight:900,fontSize:20,color:"#f0f4f8"}}>MacroCoach Premium</h3>
-              <p style={{color:"#8a9bb0",fontSize:13,margin:0}}>{t.premium.sub}</p>
+      {/* ── MODAL ── */}
+      {modal&&(
+        <div style={{position:"fixed",inset:0,background:"#00000099",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}} onClick={()=>setModal(false)}>
+          <div style={{background:"#111620",borderRadius:24,border:`2px solid ${C.gold}55`,padding:"36px 28px",maxWidth:380,width:"100%",position:"relative",boxShadow:`0 24px 80px #000000aa,0 0 40px ${C.gold}22`}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>setModal(false)} style={{position:"absolute",top:16,right:16,background:"#161e2a",border:"none",color:"#6b7a8d",fontSize:18,cursor:"pointer",width:32,height:32,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+            <div style={{textAlign:"center",marginBottom:24}}>
+              <div style={{fontSize:40,marginBottom:10}}>✨</div>
+              <h3 style={{margin:"0 0 8px",fontWeight:900,fontSize:21,color:"#eef2f7"}}>{t.modal.title}</h3>
+              <p style={{color:"#6b7a8d",fontSize:13,margin:0,lineHeight:1.5}}>{t.prem.sub}</p>
             </div>
-            {[{e:"🤖",l:"KI-Wochenplan"},{e:"🍽️",l:"Mahlzeitenvorschläge"},{e:"📊",l:"Fortschritts-Tracking"},{e:"📄",l:"PDF Export"}].map(x=>(
-              <div key={x.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,padding:"9px 12px",background:`${gold}10`,borderRadius:10,border:`1px solid ${gold}20`}}>
-                <span style={{fontSize:18}}>{x.e}</span>
-                <span style={{color:"#c0cdd8",fontSize:13,fontWeight:600}}>{x.l}</span>
-                <span style={{marginLeft:"auto",color:gold,fontWeight:700,fontSize:12}}>✓</span>
+            {t.modal.features.map(x=>(
+              <div key={x.l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,padding:"10px 14px",background:`${C.gold}0d`,borderRadius:12,border:`1px solid ${C.gold}18`}}>
+                <span style={{fontSize:20}}>{x.e}</span>
+                <span style={{color:"#c8d4e0",fontSize:13,fontWeight:600}}>{x.l}</span>
+                <span style={{marginLeft:"auto",color:C.gold,fontWeight:800,fontSize:12}}>✓</span>
               </div>
             ))}
-            <div style={{textAlign:"center",margin:"20px 0 14px"}}>
-              <span style={{fontSize:32,fontWeight:900,color:"#f0f4f8"}}>4,99€</span>
-              <span style={{color:"#5a6a7a",fontSize:12}}> / {lang==="de"?"einmalig":"one-time"}</span>
+            <div style={{textAlign:"center",margin:"22px 0 16px"}}>
+              <span style={{fontSize:34,fontWeight:900,color:"#eef2f7"}}>{t.modal.price}</span>
+              <span style={{color:"#4a5868",fontSize:13}}> / {t.modal.period}</span>
             </div>
-            <div style={{textAlign:"center",padding:"16px",borderRadius:12,border:`1px solid ${gold}40`,background:`${gold}08`}}>
+            <div style={{textAlign:"center",padding:"18px 16px",borderRadius:14,border:`1px solid ${C.gold}35`,background:`${C.gold}0a`,marginBottom:14}}>
               <div style={{fontSize:28,marginBottom:8}}>🚀</div>
-              <div style={{color:gold,fontWeight:800,fontSize:16,marginBottom:4}}>
-                {lang==="de"?"Bald verfügbar!":"Coming Soon!"}
-              </div>
-              <div style={{color:"#8a9bb0",fontSize:13,lineHeight:1.6}}>
-                {lang==="de"
-                  ?"Premium wird gerade eingerichtet. Schau bald wieder vorbei!"
-                  :"Premium is being set up. Check back soon!"}
-              </div>
+              <div style={{color:C.gold,fontWeight:800,fontSize:16,marginBottom:5}}>{t.modal.soon}</div>
+              <div style={{color:"#6b7a8d",fontSize:13,lineHeight:1.6}}>{t.modal.soonSub}</div>
             </div>
-            <p style={{textAlign:"center",color:"#5a6a7a",fontSize:10,marginTop:12,marginBottom:0}}>
-              {lang==="de"?"🔔 Folge uns auf TikTok für Updates":"🔔 Follow us on TikTok for updates"}
-            </p>
+            <p style={{textAlign:"center",color:"#3a4858",fontSize:11,margin:0}}>{t.modal.tiktok}</p>
           </div>
         </div>
       )}
